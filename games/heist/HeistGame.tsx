@@ -1,0 +1,620 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { Cell, HeistCfg, HeistLevel, LEVELS, caughtAt, endlessCfg, genLevel, genLevelFrom, guardAt } from "./engine";
+import { dayNumber, todayKey } from "@/lib/sdk/daily";
+import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import { buildShare, shareResult } from "@/lib/sdk/share";
+import Celebration from "@/components/Celebration";
+
+const CW = 900;
+const CH = 600;
+const TICK_MS = 240;
+
+type Phase = "plan" | "run" | "caught" | "levelDone" | "dayDone";
+type Mode = "daily" | "endless";
+
+function readEndlessBest(): number {
+  try {
+    return Number(window.localStorage.getItem("gd:heist:endless-best") || 0);
+  } catch {
+    return 0;
+  }
+}
+
+export default function HeistGame() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [num, setNum] = useState(0);
+  const [levelIdx, setLevelIdx] = useState(0);
+  const [phase, setPhase] = useState<Phase>("plan");
+  const [mode, setMode] = useState<Mode>("daily");
+  const [attempts, setAttempts] = useState(0);
+  const [pathLen, setPathLen] = useState(1);
+  const [canGo, setCanGo] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [dayStats, setDayStats] = useState<{ gems: number; attempts: number; stars: number }[]>([]);
+  const [cleared, setCleared] = useState(0); // endless: museums cleared this run
+  const [endlessBest, setEndlessBest] = useState(0);
+  const [lastStars, setLastStars] = useState(1);
+  const [lastGems, setLastGems] = useState(0);
+
+  const levelRef = useRef<HeistLevel | null>(null);
+  const cfgRef = useRef<HeistCfg>(LEVELS[0]);
+  const pathRef = useRef<Cell[]>([]);
+  const phaseRef = useRef<Phase>("plan");
+  const modeRef = useRef<Mode>("daily");
+  const levelIdxRef = useRef(0);
+  const attemptsRef = useRef(0);
+  const clearedRef = useRef(0);
+  const endlessSeedRef = useRef("");
+  const runRef = useRef<{ t: number; lastTick: number; collected: Set<number> } | null>(null);
+  const dragRef = useRef(false);
+  const dayRef = useRef("");
+  const statsRef = useRef<{ gems: number; attempts: number; stars: number }[]>([]);
+
+  const setPhaseBoth = (p: Phase) => {
+    phaseRef.current = p;
+    setPhase(p);
+  };
+
+  const geom = (lv: HeistLevel) => {
+    const cell = Math.min(Math.floor((CW - 24) / lv.cols), Math.floor((CH - 24) / lv.rows));
+    return { cell, ox: (CW - cell * lv.cols) / 2, oy: (CH - cell * lv.rows) / 2 };
+  };
+
+  const loadLevel = (lv: HeistLevel, cfg: HeistCfg, idx: number) => {
+    levelRef.current = lv;
+    cfgRef.current = cfg;
+    levelIdxRef.current = idx;
+    pathRef.current = [{ ...lv.start }];
+    attemptsRef.current = 0;
+    runRef.current = null;
+    setLevelIdx(idx);
+    setAttempts(0);
+    setPathLen(1);
+    setCanGo(false);
+    setPhaseBoth("plan");
+  };
+
+  const startLevel = (idx: number) => {
+    modeRef.current = "daily";
+    setMode("daily");
+    loadLevel(genLevel(dayRef.current, idx), LEVELS[idx], idx);
+  };
+
+  const startEndless = () => {
+    modeRef.current = "endless";
+    setMode("endless");
+    clearedRef.current = 0;
+    setCleared(0);
+    endlessSeedRef.current = `heist:endless:${Math.random().toString(36).slice(2, 9)}`;
+    const cfg = endlessCfg(0);
+    loadLevel(genLevelFrom(`${endlessSeedRef.current}:0`, cfg), cfg, 0);
+  };
+
+  const nextEndless = () => {
+    const i = levelIdxRef.current + 1;
+    const cfg = endlessCfg(i);
+    loadLevel(genLevelFrom(`${endlessSeedRef.current}:${i}`, cfg), cfg, i);
+  };
+
+  const syncPathState = () => {
+    const lv = levelRef.current;
+    const path = pathRef.current;
+    setPathLen(path.length);
+    setCanGo(!!lv && path.length > 1 && path[path.length - 1].c === lv.exit.c && path[path.length - 1].r === lv.exit.r);
+  };
+
+  const resetPath = () => {
+    const lv = levelRef.current;
+    if (!lv || phaseRef.current !== "plan") return;
+    pathRef.current = [{ ...lv.start }];
+    syncPathState();
+  };
+
+  const go = () => {
+    if (phaseRef.current !== "plan" || !canGo) return;
+    attemptsRef.current += 1;
+    setAttempts(attemptsRef.current);
+    runRef.current = { t: 0, lastTick: performance.now(), collected: new Set() };
+    setPhaseBoth("run");
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    dayRef.current = todayKey();
+    setNum(dayNumber());
+    setStreak(getStreak("heist", dayRef.current));
+    setEndlessBest(readEndlessBest());
+    startLevel(0);
+    if (!window.localStorage.getItem("gd:heist:help")) setShowHelp(true);
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = CW * dpr;
+    canvas.height = CH * dpr;
+
+    const cellFromEvent = (e: PointerEvent): Cell | null => {
+      const lv = levelRef.current;
+      if (!lv) return null;
+      const { cell, ox, oy } = geom(lv);
+      const rect = canvas.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * CW;
+      const y = ((e.clientY - rect.top) / rect.height) * CH;
+      const c = Math.floor((x - ox) / cell);
+      const r = Math.floor((y - oy) / cell);
+      if (c < 0 || r < 0 || c >= lv.cols || r >= lv.rows) return null;
+      return { c, r };
+    };
+
+    const tryExtend = (target: Cell | null) => {
+      const lv = levelRef.current;
+      if (!lv || !target || phaseRef.current !== "plan") return;
+      if (lv.walls[target.r][target.c]) return;
+      const path = pathRef.current;
+      const head = path[path.length - 1];
+      const dist = Math.abs(head.c - target.c) + Math.abs(head.r - target.r);
+      if (dist === 1) {
+        path.push(target);
+        syncPathState();
+      }
+    };
+
+    const onDown = (e: PointerEvent) => {
+      canvas.setPointerCapture(e.pointerId);
+      dragRef.current = true;
+      const cellHit = cellFromEvent(e);
+      const path = pathRef.current;
+      // tap the head to undo a step
+      if (cellHit && path.length > 1) {
+        const head = path[path.length - 1];
+        if (cellHit.c === head.c && cellHit.r === head.r) {
+          path.pop();
+          syncPathState();
+          return;
+        }
+      }
+      tryExtend(cellHit);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (dragRef.current) tryExtend(cellFromEvent(e));
+    };
+    const onUp = () => {
+      dragRef.current = false;
+    };
+
+    canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerup", onUp);
+
+    let raf = 0;
+
+    const finishLevel = (gems: number) => {
+      // stars: escape = 1, all gems = 2, first-plan clean job = 3
+      const stars =
+        1 + (gems >= cfgRef.current.gems ? 1 : 0) + (attemptsRef.current === 1 ? 1 : 0);
+      setLastStars(stars);
+      setLastGems(gems);
+
+      if (modeRef.current === "endless") {
+        clearedRef.current += 1;
+        setCleared(clearedRef.current);
+        if (clearedRef.current > readEndlessBest()) {
+          try {
+            window.localStorage.setItem("gd:heist:endless-best", String(clearedRef.current));
+          } catch {}
+          setEndlessBest(clearedRef.current);
+        }
+        setPhaseBoth("levelDone");
+        return;
+      }
+
+      statsRef.current = [...statsRef.current];
+      statsRef.current[levelIdxRef.current] = { gems, attempts: attemptsRef.current, stars };
+      setDayStats([...statsRef.current]);
+      if (levelIdxRef.current >= LEVELS.length - 1) {
+        const totalAttempts = statsRef.current.reduce((a, s) => a + (s?.attempts || 0), 0);
+        saveResult("heist", dayRef.current, { score: totalAttempts, won: true });
+        setStreak(getStreak("heist", dayRef.current));
+        setPhaseBoth("dayDone");
+      } else {
+        setPhaseBoth("levelDone");
+      }
+    };
+
+    const draw = (now: number) => {
+      const lv = levelRef.current;
+      if (!lv) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      const { cell, ox, oy } = geom(lv);
+      const path = pathRef.current;
+      const run = runRef.current;
+
+      // ---- advance simulation ----
+      if (phaseRef.current === "run" && run) {
+        if (now - run.lastTick >= TICK_MS) {
+          run.lastTick = now;
+          run.t += 1;
+          const t = run.t;
+          if (t >= path.length) {
+            // path exhausted — we're standing on the exit (GO required it)
+            finishLevel(run.collected.size);
+          } else {
+            const oldPos = path[t - 1];
+            const newPos = path[t];
+            if (caughtAt(lv.guards, oldPos, newPos, t)) {
+              setPhaseBoth("caught");
+              window.setTimeout(() => {
+                if (phaseRef.current === "caught") {
+                  runRef.current = null;
+                  setPhaseBoth("plan");
+                }
+              }, 900);
+            } else {
+              lv.gems.forEach((gm, i) => {
+                if (gm.c === newPos.c && gm.r === newPos.r) run.collected.add(i);
+              });
+              if (newPos.c === lv.exit.c && newPos.r === lv.exit.r) finishLevel(run.collected.size);
+            }
+          }
+        }
+      }
+
+      // ---- render ----
+      const frac = run ? Math.min(1, (now - run.lastTick) / TICK_MS) : 0;
+      const tNow = run ? run.t : path.length - 1; // planning: preview guards at plan-head time
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#efe8db";
+      ctx.fillRect(0, 0, CW, CH);
+
+      // floor grid
+      ctx.strokeStyle = "rgba(41,36,32,0.07)";
+      ctx.lineWidth = 1;
+      for (let c = 0; c <= lv.cols; c++) {
+        ctx.beginPath();
+        ctx.moveTo(ox + c * cell, oy);
+        ctx.lineTo(ox + c * cell, oy + lv.rows * cell);
+        ctx.stroke();
+      }
+      for (let r = 0; r <= lv.rows; r++) {
+        ctx.beginPath();
+        ctx.moveTo(ox, oy + r * cell);
+        ctx.lineTo(ox + lv.cols * cell, oy + r * cell);
+        ctx.stroke();
+      }
+
+      // patrol loops (faint dotted)
+      ctx.setLineDash([4, 5]);
+      ctx.strokeStyle = "rgba(201,111,74,0.3)";
+      ctx.lineWidth = 1.5;
+      for (const g of lv.guards) {
+        ctx.beginPath();
+        g.path.forEach((p, i) => {
+          const x = ox + (p.c + 0.5) * cell;
+          const y = oy + (p.r + 0.5) * cell;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      // walls (display cases)
+      for (let r = 0; r < lv.rows; r++)
+        for (let c = 0; c < lv.cols; c++)
+          if (lv.walls[r][c]) {
+            ctx.fillStyle = "#3a332c";
+            ctx.beginPath();
+            ctx.roundRect(ox + c * cell + 3, oy + r * cell + 3, cell - 6, cell - 6, 6);
+            ctx.fill();
+          }
+
+      // exit
+      ctx.fillStyle = "rgba(232,194,104,0.5)";
+      ctx.beginPath();
+      ctx.roundRect(ox + lv.exit.c * cell + 2, oy + lv.exit.r * cell + 2, cell - 4, cell - 4, 8);
+      ctx.fill();
+      ctx.fillStyle = "#8a6d2f";
+      ctx.font = `bold ${Math.floor(cell * 0.24)}px ui-sans-serif, system-ui`;
+      ctx.textAlign = "center";
+      ctx.fillText("EXIT", ox + (lv.exit.c + 0.5) * cell, oy + (lv.exit.r + 0.62) * cell);
+
+      // planned path
+      ctx.fillStyle = "rgba(41,36,32,0.4)";
+      path.forEach((p, i) => {
+        if (i === 0) return;
+        const x = ox + (p.c + 0.5) * cell;
+        const y = oy + (p.r + 0.5) * cell;
+        ctx.beginPath();
+        ctx.arc(x, y, cell * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      if (path.length > 1 && phaseRef.current === "plan") {
+        const head = path[path.length - 1];
+        ctx.strokeStyle = "rgba(41,36,32,0.5)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(ox + (head.c + 0.5) * cell, oy + (head.r + 0.5) * cell, cell * 0.2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // gems
+      lv.gems.forEach((gm, i) => {
+        if (run?.collected.has(i)) return;
+        const x = ox + (gm.c + 0.5) * cell;
+        const y = oy + (gm.r + 0.5) * cell;
+        const s = cell * 0.22;
+        ctx.fillStyle = "#d9a441";
+        ctx.beginPath();
+        ctx.moveTo(x, y - s);
+        ctx.lineTo(x + s, y);
+        ctx.lineTo(x, y + s);
+        ctx.lineTo(x - s, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(41,36,32,0.4)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+
+      // guards: live position (interpolated during run) + planning ghost at plan-head time
+      for (const g of lv.guards) {
+        let gx: number;
+        let gy: number;
+        if (phaseRef.current === "run" && run) {
+          const a = guardAt(g, run.t);
+          const b = guardAt(g, run.t + 1);
+          gx = ox + (a.c + (b.c - a.c) * frac + 0.5) * cell;
+          gy = oy + (a.r + (b.r - a.r) * frac + 0.5) * cell;
+        } else {
+          const a = guardAt(g, 0);
+          gx = ox + (a.c + 0.5) * cell;
+          gy = oy + (a.r + 0.5) * cell;
+        }
+        ctx.fillStyle = "#c96f4a";
+        ctx.beginPath();
+        ctx.arc(gx, gy, cell * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(41,36,32,0.55)";
+        ctx.beginPath();
+        ctx.arc(gx, gy - cell * 0.06, cell * 0.09, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ghost: where this guard will be when your plan reaches its current length
+        if (phaseRef.current === "plan" && path.length > 1) {
+          const gh = guardAt(g, tNow);
+          const hx = ox + (gh.c + 0.5) * cell;
+          const hy = oy + (gh.r + 0.5) * cell;
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = "rgba(201,111,74,0.75)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(hx, hy, cell * 0.26, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+
+      // thief
+      let tx: number;
+      let ty: number;
+      if (phaseRef.current === "run" && run && run.t < path.length) {
+        const a = path[Math.max(0, run.t - 1)];
+        const b = path[Math.min(path.length - 1, run.t)];
+        tx = ox + (a.c + (b.c - a.c) * frac + 0.5) * cell;
+        ty = oy + (a.r + (b.r - a.r) * frac + 0.5) * cell;
+      } else {
+        const a = phaseRef.current === "plan" ? path[0] : path[path.length - 1];
+        tx = ox + (a.c + 0.5) * cell;
+        ty = oy + (a.r + 0.5) * cell;
+      }
+      ctx.fillStyle = "#6f8fa8";
+      ctx.beginPath();
+      ctx.arc(tx, ty, cell * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(41,36,32,0.5)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // little mask band
+      ctx.fillStyle = "#292420";
+      ctx.fillRect(tx - cell * 0.22, ty - cell * 0.1, cell * 0.44, cell * 0.1);
+
+      if (phaseRef.current === "caught") {
+        ctx.fillStyle = "rgba(201,111,74,0.25)";
+        ctx.fillRect(0, 0, CW, CH);
+      }
+
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerup", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const cfg = mode === "endless" ? endlessCfg(levelIdx) : LEVELS[levelIdx];
+  const totalAttempts = dayStats.reduce((a, s) => a + (s?.attempts || 0), 0);
+  const totalGems = dayStats.reduce((a, s) => a + (s?.gems || 0), 0);
+  const maxGems = LEVELS.reduce((a, l) => a + l.gems, 0);
+  const prior = typeof window !== "undefined" && dayRef.current ? loadResult("heist", dayRef.current) : null;
+
+  const share = async () => {
+    // one line per museum: gems taken vs left behind, plans spent
+    const lines = dayStats.map((s, i) => {
+      const got = s?.gems ?? 0;
+      const max = LEVELS[i].gems;
+      return `${"💎".repeat(got)}${"◇".repeat(Math.max(0, max - got))} 🕶️${s?.attempts ?? 0}`;
+    });
+    const text = buildShare("HEIST", num, [
+      ...lines,
+      `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"} · the perfect crime?`,
+    ]);
+    const outcome = await shareResult(text);
+    setCopied(outcome !== "failed");
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const restartDay = () => {
+    statsRef.current = [];
+    setDayStats([]);
+    startLevel(0);
+  };
+
+  return (
+    <div className="relative w-full">
+      <div className="stat-bar">
+        <div className="stat">
+          <span className="lab">Museum</span>
+          <span className="val">{mode === "endless" ? `#${levelIdx + 1}` : `${levelIdx + 1}/3`}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Guards</span>
+          <span className="val">{cfg.guards}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Plans</span>
+          <span className="val">{attempts}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Steps</span>
+          <span className="val">{pathLen - 1}</span>
+        </div>
+        {mode === "endless" ? (
+          <>
+            <div className="stat">
+              <span className="lab">Cleared</span>
+              <span className="val">{cleared}</span>
+            </div>
+            <div className="stat">
+              <span className="lab">Best run</span>
+              <span className="val warn">{endlessBest}</span>
+            </div>
+          </>
+        ) : (
+          <div className="stat">
+            <span className="lab">Streak</span>
+            <span className="val">{streak}🔥</span>
+          </div>
+        )}
+      </div>
+
+      <canvas ref={canvasRef} className="board" style={{ aspectRatio: `${CW}/${CH}` }} />
+
+      <div className="mt-3 flex items-center justify-center gap-2">
+        <button onClick={resetPath} disabled={phase !== "plan"} className="btn-line px-4 py-2 disabled:opacity-40">
+          Reset
+        </button>
+        <button onClick={go} disabled={!canGo || phase !== "plan"} className="btn-ink px-7 py-2 disabled:opacity-40">
+          GO 🕶️
+        </button>
+      </div>
+      <p className="hint">
+        drag a route to the EXIT · dashed ghosts = guards at your plan&apos;s last step ·{" "}
+        {mode === "daily" ? (
+          <button onClick={startEndless}>endless mode →</button>
+        ) : (
+          <button onClick={() => startLevel(0)}>← back to daily</button>
+        )}{" "}
+        · <button onClick={() => setShowHelp(true)}>how to play?</button>
+      </p>
+
+      {showHelp && (
+        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
+          <div className="panel max-w-sm max-h-full overflow-y-auto">
+            <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
+            <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
+              <li>
+                <span className="text-stone-900 font-semibold">1. Plan the whole robbery first.</span>{" "}
+                Drag (or tap cell by cell) from your thief to the EXIT — through the gems if you dare.
+              </li>
+              <li>
+                <span className="text-stone-900 font-semibold">2. Guards patrol the dotted loops</span> —
+                one step for every step you take. The{" "}
+                <span className="text-stone-900 font-semibold">dashed ghost</span> shows where each guard
+                will be at your plan&apos;s final step. Tap your path&apos;s head to undo.
+              </li>
+              <li>
+                <span className="text-stone-900 font-semibold">3. Press GO and pray.</span> No control
+                once it starts. Same cell as a guard = caught = replan.
+              </li>
+              <li>
+                <span className="text-stone-900 font-semibold">4. Three museums a day.</span> Fewest
+                plans, most gems = the perfect crime.
+              </li>
+            </ol>
+            <button
+              onClick={() => {
+                setShowHelp(false);
+                try {
+                  window.localStorage.setItem("gd:heist:help", "1");
+                } catch {}
+              }}
+              className="btn-ink mt-5 w-full px-5 py-2.5"
+            >
+              Got it — case the joint
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === "levelDone" && mode === "daily" && (
+        <Celebration
+          title="Clean getaway!"
+          stars={lastStars}
+          score={{ label: "gems secured", value: lastGems }}
+          badges={[
+            `${dayStats[levelIdx]?.attempts || 1} plan${(dayStats[levelIdx]?.attempts || 1) === 1 ? " — first try ✓" : "s"}`,
+            lastGems >= cfg.gems ? "Every gem 💎" : `${lastGems}/${cfg.gems} gems`,
+          ]}
+          primary={{ label: `Museum ${levelIdx + 2} — more guards →`, onClick: () => startLevel(levelIdx + 1) }}
+          footnote="Same museums for everyone today."
+        />
+      )}
+
+      {phase === "levelDone" && mode === "endless" && (
+        <Celebration
+          title={`Museum #${levelIdx + 1} cleared!`}
+          stars={lastStars}
+          score={{ label: "museums this run", value: cleared }}
+          badges={[
+            cleared > 0 && cleared >= endlessBest ? "Best run 🏆" : `Best: ${endlessBest}`,
+            `Next: ${endlessCfg(levelIdx + 1).guards} guards`,
+          ]}
+          primary={{ label: `Museum #${levelIdx + 2} →`, onClick: nextEndless }}
+          secondary={{ label: "Stop the run", onClick: () => startLevel(0) }}
+          footnote="It only gets meaner from here."
+        />
+      )}
+
+      {phase === "dayDone" && (
+        <Celebration
+          title={`HEIST #${num} complete!`}
+          stars={Math.round(dayStats.reduce((a, s) => a + (s?.stars || 0), 0) / 3)}
+          score={{ label: `gems of ${maxGems}`, value: totalGems }}
+          badges={[
+            `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"} total`,
+            ...(prior?.won ? [`Today's best: ${prior.score} plans`] : []),
+          ]}
+          primary={{ label: "Endless mode →", onClick: startEndless }}
+          secondary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
+          footnote="Endless museums keep growing — how deep can you go?"
+          countdown
+        />
+      )}
+    </div>
+  );
+}
