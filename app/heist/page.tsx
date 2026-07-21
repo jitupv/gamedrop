@@ -1,39 +1,21 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
 import ChallengeBanner from "@/components/ChallengeBanner";
+import GameHeader from "@/components/GameHeader";
 import HeistGame from "@/games/heist/HeistGame";
-import { dayNumber } from "@/lib/sdk/daily";
 
 export default function HeistPage() {
-  const [num, setNum] = useState<number | null>(null);
-  useEffect(() => setNum(dayNumber()), []);
-
   return (
-    <main className="fit-screen mx-auto w-full max-w-5xl px-4">
-      <div className="text-center pt-4 pb-2 shrink-0">
-        <p className="overline">
-          From the vault{num !== null ? ` · daily challenge #${num}` : ""}
-        </p>
-        <h1 className="font-serif text-3xl font-bold text-stone-900 leading-tight">HEIST</h1>
-      </div>
-
-      <ChallengeBanner render={(v) => `A friend dares you: pull today's heists in under ${v} plans 💎`} />
-
-      <div className="flex-1 min-h-0 flex items-center justify-center py-1">
-        <div className="board-wide">
-          <div className="card p-3 sm:p-4">
+    <>
+      <GameHeader name="HEIST" />
+      <main className="fit-screen mx-auto w-full max-w-5xl px-2 sm:px-4">
+        <ChallengeBanner render={(v) => `A friend dares you: pull today's heists in under ${v} plans 💎`} />
+        <div className="flex-1 min-h-0 flex items-center justify-center py-2">
+          <div className="board-wide">
             <HeistGame />
           </div>
         </div>
-      </div>
-
-      <div className="shrink-0 py-3 text-center text-xs text-stone-400">
-        <Link href="/" className="text-stone-700 font-semibold underline-offset-2 hover:underline">
-          ← Today&apos;s game: TILT 🍬
-        </Link>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

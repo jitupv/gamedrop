@@ -14,7 +14,7 @@ export const GAMES: GameMeta[] = [
     tagline: "Swipe the whole board. Match. Chain. Repeat.",
     status: "live",
     emoji: "🍬",
-    path: "/",
+    path: "/tilt",
   },
   {
     id: "orbit",

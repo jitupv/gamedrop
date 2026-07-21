@@ -143,7 +143,7 @@ button.stat-btn .val {
 /* 3:2 boards rotate 90° on portrait phones — height-driven sizing there */
 @media (orientation: portrait) {
   .board-wide.board-flip {
-    width: min(100%, 500px, calc((100dvh - 345px) * 0.6667));
+    width: min(100%, 540px, calc((100dvh - 215px) * 0.6667));
   }
 }
 
@@ -335,19 +335,19 @@ button.stat-btn .val {
 /* ============ 100vh game screens ============ */
 
 .fit-screen {
-  height: calc(100vh - 65px);
-  height: calc(100dvh - 65px);
+  height: calc(100vh - 49px);
+  height: calc(100dvh - 49px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 .board-square {
-  width: min(100%, 520px, calc(100dvh - 350px));
+  width: min(100%, 560px, calc(100dvh - 205px));
   margin-inline: auto;
 }
 
 .board-wide {
-  width: min(100%, 880px, calc((100dvh - 360px) * 1.5));
+  width: min(100%, 900px, calc((100dvh - 215px) * 1.5));
   margin-inline: auto;
 }
