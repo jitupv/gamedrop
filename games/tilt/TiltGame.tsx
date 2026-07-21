@@ -16,7 +16,7 @@ import {
 } from "./engine";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
-import { buildShare, shareResult } from "@/lib/sdk/share";
+import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import Celebration from "@/components/Celebration";
 
 const TILE = 80;
@@ -619,7 +619,7 @@ export default function TiltGame() {
     const text = buildShare("TILT", num, [
       ...starsRef.current.map(starRow),
       `🍬 ${dayTotalRef.current.toLocaleString()} pts`,
-    ]);
+    ], challengeUrl(dayTotalRef.current));
     const outcome = await shareResult(text);
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);

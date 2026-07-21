@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ChallengeBanner from "@/components/ChallengeBanner";
 import TiltGame from "@/games/tilt/TiltGame";
 import Countdown from "@/components/Countdown";
 import { dayNumber } from "@/lib/sdk/daily";
@@ -18,6 +19,8 @@ export default function Home() {
         </p>
         <h1 className="font-serif text-3xl font-bold text-stone-900 leading-tight">TILT</h1>
       </div>
+
+      <ChallengeBanner render={(v) => `A friend dares you: beat ${v} points on today's TILT 🍬`} />
 
       <div className="flex-1 min-h-0 flex items-center justify-center py-1">
         <div className="board-square">

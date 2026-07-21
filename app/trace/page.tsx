@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import ChallengeBanner from "@/components/ChallengeBanner";
 import TraceGame from "@/games/trace/TraceGame";
 import { dayNumber } from "@/lib/sdk/daily";
 
@@ -17,6 +18,8 @@ export default function TracePage() {
         </p>
         <h1 className="font-serif text-3xl font-bold text-stone-900 leading-tight">TRACE</h1>
       </div>
+
+      <ChallengeBanner render={(v) => `A friend dares you: beat ${v}% accuracy on today's TRACE ✏️`} />
 
       <div className="flex-1 min-h-0 flex items-center justify-center py-1">
         <div className="board-wide board-flip">

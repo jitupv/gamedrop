@@ -5,7 +5,7 @@ import { LEVELS, SonarLevel, endlessMazeSize, genMaze, genMazeCfg, lanternBudget
 import Celebration from "@/components/Celebration";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
-import { buildShare, shareResult } from "@/lib/sdk/share";
+import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import Countdown from "@/components/Countdown";
 
 const CW = 900;
@@ -393,7 +393,7 @@ export default function SonarGame() {
   const share = async () => {
     // one line per maze: pings spent in the dark, time to daylight
     const lines = levelStats.map((s) => `🔦×${s?.pings ?? 0} 🌑 ${fmtTime(s?.time ?? 0)}`);
-    const text = buildShare("SONAR", num, [...lines, `${totalPings} pings total · out alive`]);
+    const text = buildShare("SONAR", num, [...lines, `${totalPings} pings total · out alive`], challengeUrl(totalPings));
     const outcome = await shareResult(text);
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);

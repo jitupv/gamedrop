@@ -1,8 +1,14 @@
 // Spoiler-free share artifacts — the free growth channel.
 // Multi-line emoji grids (the Wordle pattern): tell the story, spoil nothing.
 
-export function buildShare(game: string, num: number, lines: string[]): string {
-  return [`${game} #${num}`, ...lines, "🪐 gamedrop.day"].join("\n");
+export function buildShare(game: string, num: number, lines: string[], challengeUrl?: string): string {
+  return [`${game} #${num}`, ...lines, challengeUrl ? `🎯 beat me: ${challengeUrl}` : "🪐 gamedrop.day"].join("\n");
+}
+
+// a live link back to this exact game, carrying the score to beat
+export function challengeUrl(score: number | string): string {
+  if (typeof window === "undefined") return "";
+  return `${window.location.origin}${window.location.pathname}?beat=${encodeURIComponent(String(score))}`;
 }
 
 // legacy single-line form, kept for anything not yet on grids

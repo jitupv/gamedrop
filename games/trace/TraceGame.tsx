@@ -5,7 +5,7 @@ import { CH, CW, Stroke, genSketch, genTargets, similarity } from "./engine";
 import Celebration from "@/components/Celebration";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
-import { buildShare, shareResult } from "@/lib/sdk/share";
+import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import Countdown from "@/components/Countdown";
 
 const MEMORIZE_S = 3;
@@ -328,7 +328,7 @@ export default function TraceGame() {
     const text = buildShare("TRACE", num, [
       scores.map((s) => `${dot(s)}${s}%`).join(" "),
       `✏️ ${avg}% from memory`,
-    ]);
+    ], challengeUrl(avg));
     const outcome = await shareResult(text);
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);

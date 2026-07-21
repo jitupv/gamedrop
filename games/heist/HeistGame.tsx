@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Cell, HeistCfg, HeistLevel, LEVELS, caughtAt, endlessCfg, genLevel, genLevelFrom, guardAt } from "./engine";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
-import { buildShare, shareResult } from "@/lib/sdk/share";
+import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import Celebration from "@/components/Celebration";
 
 const CW = 900;
@@ -462,7 +462,7 @@ export default function HeistGame() {
     const text = buildShare("HEIST", num, [
       ...lines,
       `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"} · the perfect crime?`,
-    ]);
+    ], challengeUrl(totalAttempts));
     const outcome = await shareResult(text);
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);

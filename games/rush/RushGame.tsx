@@ -24,7 +24,7 @@ import {
 } from "./engine";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
-import { buildShare, shareResult } from "@/lib/sdk/share";
+import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import Countdown from "@/components/Countdown";
 
 const COLORS = ["#c96f4a", "#d9a441", "#8a9a5b", "#6f8fa8", "#9d7a94", "#b25d6d"];
@@ -280,7 +280,7 @@ export default function RushGame() {
     const text = buildShare("RUSH", num, [
       `🚦${lane}`,
       `${best} cars${best >= DAILY_GOAL ? " · goal cleared ✅" : ` · goal ${DAILY_GOAL}`}`,
-    ]);
+    ], challengeUrl(best));
     const outcome = await shareResult(text);
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);

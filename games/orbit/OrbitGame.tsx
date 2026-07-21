@@ -17,7 +17,7 @@ import {
 } from "./engine";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
-import { buildShare, shareResult } from "@/lib/sdk/share";
+import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import Celebration from "@/components/Celebration";
 
 type Status = "idle" | "aiming" | "flying" | "resetting" | "holeDone" | "courseDone" | "runOver";
@@ -501,7 +501,7 @@ export default function OrbitGame() {
       const rockets = "🚀".repeat(Math.min(l ?? 0, 5)) + ((l ?? 0) > 5 ? `+${(l ?? 0) - 5}` : "");
       return `${rockets}${starsWon[i] ? "⭐" : ""}🎯`;
     });
-    const text = buildShare("ORBIT", num, [...holeLines, `⛳ ${totalLaunches} launches`]);
+    const text = buildShare("ORBIT", num, [...holeLines, `⛳ ${totalLaunches} launches`], challengeUrl(totalLaunches));
     const outcome = await shareResult(text);
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);

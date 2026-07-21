@@ -315,6 +315,20 @@ button.stat-btn .val {
   white-space: nowrap;
 }
 
+/* a friend's dare, delivered via share link */
+.challenge-banner {
+  margin: 0 auto 6px;
+  max-width: 520px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92600a;
+  background: rgba(217, 119, 6, 0.1);
+  border: 1px solid rgba(217, 119, 6, 0.3);
+  border-radius: 9999px;
+  padding: 6px 16px;
+}
+
 /* ============ 100vh game screens ============ */
 
 .fit-screen {
