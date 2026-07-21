@@ -503,12 +503,22 @@ export default function HeistGame() {
               <span className="lab">Best run</span>
               <span className="val warn">{endlessBest}</span>
             </div>
+            <button type="button" className="stat stat-btn" onClick={() => startLevel(0)}>
+              <span className="lab">Mode</span>
+              <span className="val">∞ ⇄</span>
+            </button>
           </>
         ) : (
-          <div className="stat">
-            <span className="lab">Streak</span>
-            <span className="val">{streak}🔥</span>
-          </div>
+          <>
+            <div className="stat">
+              <span className="lab">Streak</span>
+              <span className="val">{streak}🔥</span>
+            </div>
+            <button type="button" className="stat stat-btn" onClick={startEndless}>
+              <span className="lab">Mode</span>
+              <span className="val">Daily ⇄</span>
+            </button>
+          </>
         )}
       </div>
 
@@ -533,7 +543,7 @@ export default function HeistGame() {
       </p>
 
       {showHelp && (
-        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
+        <div className="scrim absolute inset-0 flex items-center justify-center rounded-2xl z-20 p-4">
           <div className="panel max-w-sm max-h-full overflow-y-auto">
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
             <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">

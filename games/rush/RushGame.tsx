@@ -315,7 +315,7 @@ export default function RushGame() {
       </p>
 
       {showHelp && (
-        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
+        <div className="scrim absolute inset-0 flex items-center justify-center rounded-2xl z-20 p-4">
           <div className="panel max-w-sm max-h-full overflow-y-auto">
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
             <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">

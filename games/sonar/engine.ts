@@ -22,7 +22,20 @@ export const LEVELS = [
 
 export function genMaze(dayKey: string, levelIdx: number): SonarLevel {
   const { cols, rows } = LEVELS[levelIdx];
-  const rng = mulberry32(hashSeed(`sonar:${dayKey}:L${levelIdx}`));
+  return genMazeCfg(`sonar:${dayKey}:L${levelIdx}`, cols, rows);
+}
+
+// endless: mazes keep growing, and the lantern (time budget) gets tighter per cell
+export function endlessMazeSize(i: number): { cols: number; rows: number } {
+  return { cols: Math.min(29, 13 + 2 * i), rows: Math.min(17, 9 + 2 * Math.floor(i / 2)) };
+}
+
+export function lanternBudget(cols: number, rows: number): number {
+  return Math.round(14 + (cols * rows) / 9); // seconds to escape before the dark wins
+}
+
+export function genMazeCfg(seedStr: string, cols: number, rows: number): SonarLevel {
+  const rng = mulberry32(hashSeed(seedStr));
   const grid: number[][] = Array.from({ length: rows }, () => Array(cols).fill(1));
 
   // recursive backtracker over odd cells

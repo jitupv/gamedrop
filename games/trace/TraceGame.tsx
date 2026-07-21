@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CH, CW, Stroke, genTargets, similarity } from "./engine";
+import { CH, CW, Stroke, genSketch, genTargets, similarity } from "./engine";
+import Celebration from "@/components/Celebration";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, shareResult } from "@/lib/sdk/share";
@@ -11,7 +12,17 @@ const MEMORIZE_S = 3;
 const PEEK_S = 1.2;
 const PEEK_COST = 8;
 
-type Phase = "memorize" | "draw" | "peek" | "scored" | "dayDone";
+type Phase = "memorize" | "draw" | "peek" | "scored" | "dayDone" | "runOver";
+type Mode = "daily" | "endless";
+const FAIL_LINE = 45; // endless: below this accuracy, a heart burns
+
+function readTraceEndlessBest(): number {
+  try {
+    return Number(window.localStorage.getItem("gd:trace:endless-best") || 0);
+  } catch {
+    return 0;
+  }
+}
 
 export default function TraceGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -24,7 +35,20 @@ export default function TraceGame() {
   const [streak, setStreak] = useState(0);
   const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [portrait, setPortrait] = useState(false);
+  const [mode, setMode] = useState<Mode>("daily");
+  const [hearts, setHearts] = useState(3);
+  const [endlessIdx, setEndlessIdx] = useState(0);
+  const [cleared, setCleared] = useState(0);
+  const [endlessBest, setEndlessBest] = useState(0);
+  const [lastScore, setLastScore] = useState(0);
 
+  const modeRef = useRef<Mode>("daily");
+  const heartsRef = useRef(3);
+  const endlessIdxRef = useRef(0);
+  const clearedRef = useRef(0);
+  const runSeedRef = useRef("");
+  const portraitRef = useRef(false);
   const targetsRef = useRef<Stroke[][]>([]);
   const strokesRef = useRef<Stroke[]>([]);
   const curStrokeRef = useRef<Stroke | null>(null);
@@ -52,11 +76,69 @@ export default function TraceGame() {
     setPhaseBoth("memorize");
   };
 
+  const loadSketch = (i: number) => {
+    endlessIdxRef.current = i;
+    setEndlessIdx(i);
+    targetsRef.current = [genSketch(`${runSeedRef.current}:${i}`, i)];
+    startRound(0);
+  };
+
+  const startEndless = () => {
+    modeRef.current = "endless";
+    setMode("endless");
+    setEndlessBest(readTraceEndlessBest());
+    heartsRef.current = 3;
+    setHearts(3);
+    clearedRef.current = 0;
+    setCleared(0);
+    runSeedRef.current = `trace:endless:${Math.random().toString(36).slice(2, 9)}`;
+    loadSketch(0);
+  };
+
+  const backToDaily = () => {
+    modeRef.current = "daily";
+    setMode("daily");
+    targetsRef.current = genTargets(dayRef.current);
+    scoresRef.current = [];
+    setScores([]);
+    startRound(0);
+  };
+
   const submit = () => {
     if (phaseRef.current !== "draw" || strokesRef.current.length === 0) return;
     const target = targetsRef.current[roundRef.current];
     let s = similarity(target, strokesRef.current);
     if (peekedRef.current) s = Math.max(0, Math.round((s - PEEK_COST) * 10) / 10);
+
+    if (modeRef.current === "endless") {
+      setLastScore(s);
+      if (s < FAIL_LINE) {
+        heartsRef.current -= 1;
+        setHearts(heartsRef.current);
+        if (heartsRef.current <= 0) {
+          if (clearedRef.current > readTraceEndlessBest()) {
+            try {
+              window.localStorage.setItem("gd:trace:endless-best", String(clearedRef.current));
+            } catch {}
+            setEndlessBest(clearedRef.current);
+          }
+          setPhaseBoth("runOver");
+          return;
+        }
+      } else {
+        clearedRef.current += 1;
+        setCleared(clearedRef.current);
+        if (clearedRef.current > readTraceEndlessBest()) {
+          try {
+            window.localStorage.setItem("gd:trace:endless-best", String(clearedRef.current));
+          } catch {}
+          setEndlessBest(clearedRef.current);
+        }
+      }
+      setPhaseBoth("scored");
+      return;
+    }
+
     scoresRef.current = [...scoresRef.current];
     scoresRef.current[roundRef.current] = s;
     setScores([...scoresRef.current]);
@@ -101,8 +183,23 @@ export default function TraceGame() {
     canvas.width = CW * dpr;
     canvas.height = CH * dpr;
 
+    // portrait phones: rotate the sheet 90° for a full-height drawing area
+    const mq = window.matchMedia("(orientation: portrait)");
+    const applyOrientation = () => {
+      portraitRef.current = mq.matches;
+      setPortrait(mq.matches);
+    };
+    applyOrientation();
+    mq.addEventListener("change", applyOrientation);
+
     const toGame = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
+      if (portraitRef.current) {
+        return {
+          x: CW - ((e.clientY - rect.top) / rect.height) * CW,
+          y: ((e.clientX - rect.left) / rect.width) * CH,
+        };
+      }
       return { x: ((e.clientX - rect.left) / rect.width) * CW, y: ((e.clientY - rect.top) / rect.height) * CH };
     };
     const onDown = (e: PointerEvent) => {
@@ -157,7 +254,16 @@ export default function TraceGame() {
       if (phaseRef.current === "memorize" && phaseAge >= MEMORIZE_S) setPhaseBoth("draw");
       if (phaseRef.current === "peek" && phaseAge >= PEEK_S) setPhaseBoth("draw");
 
+      const wantW = (portraitRef.current ? CH : CW) * dpr;
+      if (canvas.width !== wantW) {
+        canvas.width = wantW;
+        canvas.height = (portraitRef.current ? CW : CH) * dpr;
+      }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (portraitRef.current) {
+        ctx.translate(0, CW);
+        ctx.rotate(-Math.PI / 2);
+      }
       ctx.fillStyle = "#f9f5ec";
       ctx.fillRect(0, 0, CW, CH);
 
@@ -184,12 +290,19 @@ export default function TraceGame() {
 
       if (phaseRef.current === "memorize") {
         const remain = Math.ceil(MEMORIZE_S - phaseAge);
-        ctx.fillStyle = "rgba(41,36,32,0.8)";
-        ctx.font = "bold 46px ui-sans-serif, system-ui";
-        ctx.textAlign = "center";
-        ctx.fillText(String(remain), CW - 60, 70);
-        ctx.font = "600 15px ui-sans-serif, system-ui";
-        ctx.fillText("memorize it", CW - 60, 96);
+        // keep the countdown text upright even when the sheet is rotated
+        const upright = (txt: string, x: number, y: number, font: string) => {
+          ctx.save();
+          ctx.translate(x, y);
+          if (portraitRef.current) ctx.rotate(Math.PI / 2);
+          ctx.fillStyle = "rgba(41,36,32,0.8)";
+          ctx.font = font;
+          ctx.textAlign = "center";
+          ctx.fillText(txt, 0, 0);
+          ctx.restore();
+        };
+        upright(String(remain), CW - 60, 70, "bold 46px ui-sans-serif, system-ui");
+        upright("memorize it", CW - 60, 96, "600 15px ui-sans-serif, system-ui");
       }
 
       raf = requestAnimationFrame(draw);
@@ -198,6 +311,7 @@ export default function TraceGame() {
 
     return () => {
       cancelAnimationFrame(raf);
+      mq.removeEventListener("change", applyOrientation);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
@@ -231,23 +345,55 @@ export default function TraceGame() {
       <div className="stat-bar">
         <div className="stat">
           <span className="lab">Sketch</span>
-          <span className="val">{round + 1}/3</span>
+          <span className="val">{mode === "endless" ? `#${endlessIdx + 1}` : `${round + 1}/3`}</span>
         </div>
-        {[0, 1, 2].map((i) => (
-          <div className="stat" key={i}>
-            <span className="lab">#{i + 1}</span>
-            <span className={`val${scores[i] === undefined ? " text-stone-400" : ""}`}>
-              {scores[i] === undefined ? "—" : `${scores[i]}%`}
-            </span>
-          </div>
-        ))}
-        <div className="stat">
-          <span className="lab">Streak</span>
-          <span className="val">{streak}🔥</span>
-        </div>
+        {mode === "daily" &&
+          [0, 1, 2].map((i) => (
+            <div className="stat" key={i}>
+              <span className="lab">#{i + 1}</span>
+              <span className={`val${scores[i] === undefined ? " text-stone-400" : ""}`}>
+                {scores[i] === undefined ? "—" : `${scores[i]}%`}
+              </span>
+            </div>
+          ))}
+        {mode === "endless" ? (
+          <>
+            <div className="stat">
+              <span className="lab">Hearts</span>
+              <span className={`val${hearts <= 1 ? " warn" : ""}`}>{"♥".repeat(hearts) || "—"}</span>
+            </div>
+            <div className="stat">
+              <span className="lab">Cleared</span>
+              <span className="val">{cleared}</span>
+            </div>
+            <div className="stat">
+              <span className="lab">Best</span>
+              <span className="val warn">{endlessBest}</span>
+            </div>
+            <button type="button" className="stat stat-btn" onClick={backToDaily}>
+              <span className="lab">Mode</span>
+              <span className="val">∞ ⇄</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="stat">
+              <span className="lab">Streak</span>
+              <span className="val">{streak}🔥</span>
+            </div>
+            <button type="button" className="stat stat-btn" onClick={startEndless}>
+              <span className="lab">Mode</span>
+              <span className="val">Daily ⇄</span>
+            </button>
+          </>
+        )}
       </div>
 
-      <canvas ref={canvasRef} className="board cursor-crosshair" style={{ aspectRatio: `${CW}/${CH}` }} />
+      <canvas
+        ref={canvasRef}
+        className="board cursor-crosshair"
+        style={{ aspectRatio: portrait ? `${CH}/${CW}` : `${CW}/${CH}` }}
+      />
 
       <div className="mt-3 flex items-center justify-center gap-2">
         <button onClick={clearInk} disabled={phase !== "draw" || !hasInk} className="btn-line px-4 py-2 disabled:opacity-40">
@@ -265,7 +411,7 @@ export default function TraceGame() {
       </p>
 
       {showHelp && (
-        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
+        <div className="scrim absolute inset-0 flex items-center justify-center rounded-2xl z-20 p-4">
           <div className="panel max-w-sm max-h-full overflow-y-auto">
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
             <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
@@ -301,7 +447,35 @@ export default function TraceGame() {
         </div>
       )}
 
-      {phase === "scored" && round < 2 && (
+      {phase === "scored" && mode === "endless" && (
+        <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
+          <div className="panel text-center max-w-sm">
+            <h2 className="font-serif text-xl font-bold text-stone-900 mb-1">
+              {lastScore >= FAIL_LINE ? `${lastScore}% — it lives on` : `${lastScore}% — 💔 heart lost`}
+            </h2>
+            <p className="text-xs text-stone-500 mb-3">
+              {"♥".repeat(hearts)} · {cleared} cleared · best {endlessBest}
+            </p>
+            <button onClick={() => loadSketch(endlessIdx + 1)} className="btn-ink px-6 py-2">
+              Sketch #{endlessIdx + 2} — more tangled →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === "runOver" && (
+        <Celebration
+          title="Out of hearts!"
+          stars={cleared >= 10 ? 3 : cleared >= 5 ? 2 : cleared >= 2 ? 1 : 0}
+          score={{ label: "sketches from memory", value: cleared }}
+          badges={[cleared >= endlessBest && cleared > 0 ? "New best! 🏆" : `Best run: ${endlessBest}`]}
+          primary={{ label: "Run it back →", onClick: startEndless }}
+          secondary={{ label: "← Daily", onClick: backToDaily }}
+          footnote={`Stay above ${FAIL_LINE}% or lose a heart. The shapes only get stranger.`}
+        />
+      )}
+
+      {phase === "scored" && mode === "daily" && round < 2 && (
         <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
           <div className="panel text-center max-w-sm">
             <h2 className="font-serif text-xl font-bold text-stone-900 mb-1">
@@ -316,7 +490,7 @@ export default function TraceGame() {
         </div>
       )}
 
-      {phase === "scored" && round >= 2 && (
+      {phase === "scored" && mode === "daily" && round >= 2 && (
         <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
           <div className="panel text-center max-w-sm">
             <h2 className="font-serif text-xl font-bold text-stone-900 mb-1">

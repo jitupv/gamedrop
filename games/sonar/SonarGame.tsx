@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { LEVELS, SonarLevel, genMaze } from "./engine";
+import { LEVELS, SonarLevel, endlessMazeSize, genMaze, genMazeCfg, lanternBudget } from "./engine";
+import Celebration from "@/components/Celebration";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, shareResult } from "@/lib/sdk/share";
@@ -13,7 +14,16 @@ const PING_MAX_R = 4.6; // in cells
 const PING_LIFE = 1.7; // seconds
 const SPEED_CELLS = 5.2; // cells per second
 
-type Phase = "playing" | "levelDone" | "dayDone";
+type Phase = "playing" | "levelDone" | "dayDone" | "runOver";
+type Mode = "daily" | "endless";
+
+function readSonarEndlessBest(): number {
+  try {
+    return Number(window.localStorage.getItem("gd:sonar:endless-best") || 0);
+  } catch {
+    return 0;
+  }
+}
 
 interface Ping {
   x: number;
@@ -38,7 +48,15 @@ export default function SonarGame() {
   const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [levelStats, setLevelStats] = useState<{ pings: number; time: number }[]>([]);
+  const [mode, setMode] = useState<Mode>("daily");
+  const [lantern, setLantern] = useState(0);
+  const [cleared, setCleared] = useState(0);
+  const [endlessBest, setEndlessBest] = useState(0);
 
+  const modeRef = useRef<Mode>("daily");
+  const budgetRef = useRef(0);
+  const clearedRef = useRef(0);
+  const runSeedRef = useRef("");
   const levelRef = useRef<SonarLevel | null>(null);
   const playerRef = useRef({ x: 0, y: 0 });
   const pingsRef = useRef<Ping[]>([]);
@@ -65,8 +83,7 @@ export default function SonarGame() {
     return { cell, ox, oy };
   };
 
-  const startLevel = (idx: number) => {
-    const lv = genMaze(dayRef.current, idx);
+  const initLevel = (lv: SonarLevel, idx: number) => {
     levelRef.current = lv;
     levelIdxRef.current = idx;
     const { cell, ox, oy } = geom(lv);
@@ -80,6 +97,29 @@ export default function SonarGame() {
     setPings(0);
     setElapsed(0);
     setPhaseBoth("playing");
+  };
+
+  const startLevel = (idx: number) => {
+    modeRef.current = "daily";
+    setMode("daily");
+    initLevel(genMaze(dayRef.current, idx), idx);
+  };
+
+  const loadEndless = (i: number) => {
+    const { cols, rows } = endlessMazeSize(i);
+    budgetRef.current = lanternBudget(cols, rows);
+    setLantern(budgetRef.current);
+    initLevel(genMazeCfg(`${runSeedRef.current}:${i}`, cols, rows), i);
+  };
+
+  const startEndless = () => {
+    modeRef.current = "endless";
+    setMode("endless");
+    setEndlessBest(readSonarEndlessBest());
+    clearedRef.current = 0;
+    setCleared(0);
+    runSeedRef.current = `sonar:endless:${Math.random().toString(36).slice(2, 9)}`;
+    loadEndless(0);
   };
 
   const doPing = () => {
@@ -217,7 +257,17 @@ export default function SonarGame() {
           statsRef.current = [...statsRef.current];
           statsRef.current[levelIdxRef.current] = stat;
           setLevelStats([...statsRef.current]);
-          if (levelIdxRef.current >= LEVELS.length - 1) {
+          if (modeRef.current === "endless") {
+            clearedRef.current += 1;
+            setCleared(clearedRef.current);
+            if (clearedRef.current > readSonarEndlessBest()) {
+              try {
+                window.localStorage.setItem("gd:sonar:endless-best", String(clearedRef.current));
+              } catch {}
+              setEndlessBest(clearedRef.current);
+            }
+            setPhaseBoth("levelDone");
+          } else if (levelIdxRef.current >= LEVELS.length - 1) {
             const totalPings = statsRef.current.reduce((a, s) => a + (s?.pings || 0), 0);
             saveResult("sonar", dayRef.current, { score: totalPings, won: true });
             setStreak(getStreak("sonar", dayRef.current));
@@ -227,8 +277,19 @@ export default function SonarGame() {
           }
         }
 
+        // endless: the lantern burns down — out of time means the dark wins
+        if (modeRef.current === "endless" && phaseRef.current === "playing") {
+          const remain = budgetRef.current - (now - levelStartRef.current) / 1000;
+          if (remain <= 0) setPhaseBoth("runOver");
+        }
+
         hudTick++;
-        if (hudTick % 20 === 0) setElapsed((now - levelStartRef.current) / 1000);
+        if (hudTick % 20 === 0) {
+          setElapsed((now - levelStartRef.current) / 1000);
+          if (modeRef.current === "endless") {
+            setLantern(Math.max(0, Math.ceil(budgetRef.current - (now - levelStartRef.current) / 1000)));
+          }
+        }
       }
 
       // ---- render ----
@@ -355,14 +416,41 @@ export default function SonarGame() {
           <span className="lab">Pings</span>
           <span className="val">{pings}</span>
         </div>
-        <div className="stat">
-          <span className="lab">Time</span>
-          <span className="val">{fmtTime(elapsed)}</span>
-        </div>
-        <div className="stat">
-          <span className="lab">Streak</span>
-          <span className="val">{streak}🔥</span>
-        </div>
+        {mode === "endless" ? (
+          <>
+            <div className="stat">
+              <span className="lab">Lantern</span>
+              <span className={`val${lantern <= 10 ? " warn" : ""}`}>{lantern}s</span>
+            </div>
+            <div className="stat">
+              <span className="lab">Cleared</span>
+              <span className="val">{cleared}</span>
+            </div>
+            <div className="stat">
+              <span className="lab">Best</span>
+              <span className="val warn">{endlessBest}</span>
+            </div>
+            <button type="button" className="stat stat-btn" onClick={restartDay}>
+              <span className="lab">Mode</span>
+              <span className="val">∞ ⇄</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="stat">
+              <span className="lab">Time</span>
+              <span className="val">{fmtTime(elapsed)}</span>
+            </div>
+            <div className="stat">
+              <span className="lab">Streak</span>
+              <span className="val">{streak}🔥</span>
+            </div>
+            <button type="button" className="stat stat-btn" onClick={startEndless}>
+              <span className="lab">Mode</span>
+              <span className="val">Daily ⇄</span>
+            </button>
+          </>
+        )}
       </div>
 
       <div className="relative">
@@ -383,7 +471,7 @@ export default function SonarGame() {
       </p>
 
       {showHelp && (
-        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
+        <div className="scrim absolute inset-0 flex items-center justify-center rounded-2xl z-20 p-4">
           <div className="panel max-w-sm max-h-full overflow-y-auto">
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
             <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
@@ -419,7 +507,7 @@ export default function SonarGame() {
         </div>
       )}
 
-      {phase === "levelDone" && (
+      {phase === "levelDone" && mode === "daily" && (
         <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="panel text-center max-w-sm">
             <div className="text-4xl mb-2">🔦</div>
@@ -433,6 +521,33 @@ export default function SonarGame() {
             <p className="text-xs text-stone-400 mt-4">Same mazes for everyone today.</p>
           </div>
         </div>
+      )}
+
+      {phase === "levelDone" && mode === "endless" && (
+        <Celebration
+          title={`Maze #${levelIdx + 1} escaped!`}
+          stars={1 + (lantern >= budgetRef.current * 0.33 ? 1 : 0) + (lantern >= budgetRef.current * 0.66 ? 1 : 0)}
+          score={{ label: "mazes this run", value: cleared }}
+          badges={[
+            `${levelStats[levelIdx]?.pings ?? 0} pings`,
+            cleared >= endlessBest && cleared > 0 ? "Best run 🏆" : `Best: ${endlessBest}`,
+          ]}
+          primary={{ label: `Maze #${levelIdx + 2} — bigger →`, onClick: () => loadEndless(levelIdx + 1) }}
+          secondary={{ label: "Stop the run", onClick: restartDay }}
+          footnote="The lantern burns for the whole maze — bigger maze, longer wick, darker dark."
+        />
+      )}
+
+      {phase === "runOver" && (
+        <Celebration
+          title="The dark got you!"
+          stars={cleared >= 7 ? 3 : cleared >= 4 ? 2 : cleared >= 2 ? 1 : 0}
+          score={{ label: "mazes cleared", value: cleared }}
+          badges={[cleared >= endlessBest && cleared > 0 ? "New best! 🏆" : `Best run: ${endlessBest}`]}
+          primary={{ label: "Run it back →", onClick: startEndless }}
+          secondary={{ label: "← Daily", onClick: restartDay }}
+          footnote="Escape before the lantern dies. No pressure."
+        />
       )}
 
       {phase === "dayDone" && (

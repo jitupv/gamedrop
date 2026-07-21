@@ -124,6 +124,26 @@ body {
   color: var(--accent);
 }
 
+/* clickable stat cell — the Daily/Endless mode switch */
+button.stat-btn {
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background 0.15s ease;
+}
+button.stat-btn:hover {
+  background: rgba(28, 25, 23, 0.06);
+}
+button.stat-btn .val {
+  color: var(--accent);
+}
+
+/* 3:2 boards rotate 90° on portrait phones — height-driven sizing there */
+@media (orientation: portrait) {
+  .board-wide.board-flip {
+    width: min(100%, 460px, calc((100dvh - 380px) * 0.6667));
+  }
+}
+
 /* ============ buttons ============ */
 
 .btn-ink {

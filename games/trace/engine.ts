@@ -109,6 +109,26 @@ export function genTargets(dayKey: string): Stroke[][] {
   return [round1, round2, round3];
 }
 
+// endless: one sketch at a time, growing more tangled with depth
+export function genSketch(seedStr: string, depth: number): Stroke[] {
+  const rng = mulberry32(hashSeed(seedStr));
+  const n = 1 + Math.min(4, Math.floor(depth / 2));
+  const strokes: Stroke[] = [];
+  for (let k = 0; k < n; k++) {
+    const kind = Math.floor(rng() * 6);
+    const cx = 170 + rng() * (CW - 340);
+    const cy = 130 + rng() * (CH - 260);
+    const r = 60 + rng() * 80;
+    if (kind === 0) strokes.push(circle(cx, cy, r));
+    else if (kind === 1) strokes.push(polygon(cx, cy, r, 3 + Math.floor(rng() * 3), rng() * Math.PI));
+    else if (kind === 2) strokes.push(star(cx, cy, r, rng() * Math.PI));
+    else if (kind === 3) strokes.push(zigzag(cx - r, cy, r * 2, 60 + rng() * 50, 4 + Math.floor(rng() * 3)));
+    else if (kind === 4) strokes.push(wave(cx - r, cy, r * 2, 40 + rng() * 40));
+    else strokes.push(spiral(cx, cy, r, 2 + rng()));
+  }
+  return strokes;
+}
+
 // ---------- scoring ----------
 
 function rasterize(strokes: Stroke[]): Uint8Array {

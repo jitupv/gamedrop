@@ -59,7 +59,9 @@ export default function OrbitGame() {
   const [fuel, setFuel] = useState(START_FUEL);
   const [cleared, setCleared] = useState(0);
   const [endlessBest, setEndlessBest] = useState(0);
+  const [portrait, setPortrait] = useState(false);
 
+  const portraitRef = useRef(false);
   const modeRef = useRef<Mode>("daily");
   const fuelRef = useRef(START_FUEL);
   const clearedRef = useRef(0);
@@ -158,8 +160,23 @@ export default function OrbitGame() {
     canvas.width = W * dpr;
     canvas.height = H * dpr;
 
+    // portrait phones: the whole playfield rotates 90° so it fills the screen
+    const mq = window.matchMedia("(orientation: portrait)");
+    const applyOrientation = () => {
+      portraitRef.current = mq.matches;
+      setPortrait(mq.matches);
+    };
+    applyOrientation();
+    mq.addEventListener("change", applyOrientation);
+
     const toGame = (e: PointerEvent): Vec => {
       const rect = canvas.getBoundingClientRect();
+      if (portraitRef.current) {
+        return {
+          x: W - ((e.clientY - rect.top) / rect.height) * W,
+          y: ((e.clientX - rect.left) / rect.width) * H,
+        };
+      }
       return {
         x: ((e.clientX - rect.left) / rect.width) * W,
         y: ((e.clientY - rect.top) / rect.height) * H,
@@ -304,7 +321,16 @@ export default function OrbitGame() {
       }
 
       // ---- render ----
+      const wantW = (portraitRef.current ? H : W) * dpr;
+      if (canvas.width !== wantW) {
+        canvas.width = wantW;
+        canvas.height = (portraitRef.current ? W : H) * dpr;
+      }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (portraitRef.current) {
+        ctx.translate(0, W);
+        ctx.rotate(-Math.PI / 2);
+      }
       if (shakeRef.current > 0) {
         shakeRef.current *= 0.85;
         if (shakeRef.current < 0.3) shakeRef.current = 0;
@@ -451,6 +477,7 @@ export default function OrbitGame() {
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
+      mq.removeEventListener("change", applyOrientation);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
@@ -517,9 +544,17 @@ export default function OrbitGame() {
               <span className="lab">Streak</span>
               <span className="val">{streak}🔥</span>
             </div>
+            <button type="button" className="stat stat-btn" onClick={startEndless}>
+              <span className="lab">Mode</span>
+              <span className="val">Daily ⇄</span>
+            </button>
           </>
         ) : (
           <>
+            <button type="button" className="stat stat-btn" onClick={backToDaily}>
+              <span className="lab">Mode</span>
+              <span className="val">∞ ⇄</span>
+            </button>
             <div className="stat">
               <span className="lab">Hole</span>
               <span className="val">#{holeIdx + 1}</span>
@@ -539,7 +574,11 @@ export default function OrbitGame() {
           </>
         )}
       </div>
-      <canvas ref={canvasRef} className="board cursor-crosshair" style={{ aspectRatio: `${W}/${H}` }} />
+      <canvas
+        ref={canvasRef}
+        className="board cursor-crosshair"
+        style={{ aspectRatio: portrait ? `${H}/${W}` : `${W}/${H}` }}
+      />
       <p className="hint">
         drag anywhere · release to launch · grab the ⭐ on the way ·{" "}
         {mode === "daily" ? (

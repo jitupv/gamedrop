@@ -19,7 +19,7 @@ export default function TracePage() {
       </div>
 
       <div className="flex-1 min-h-0 flex items-center justify-center py-1">
-        <div className="board-wide">
+        <div className="board-wide board-flip">
           <div className="card p-3 sm:p-4">
             <TraceGame />
           </div>
