@@ -96,7 +96,8 @@ body {
   flex: 1;
   min-width: 0;
   text-align: center;
-  padding: 0 8px;
+  padding: 0 6px;
+  overflow: hidden;
 }
 .stat + .stat {
   border-left: 1px solid var(--line);
@@ -110,6 +111,8 @@ body {
   color: var(--muted);
   line-height: 1.4;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .stat .val {
   display: block;
@@ -140,7 +143,7 @@ button.stat-btn .val {
 /* 3:2 boards rotate 90° on portrait phones — height-driven sizing there */
 @media (orientation: portrait) {
   .board-wide.board-flip {
-    width: min(100%, 460px, calc((100dvh - 380px) * 0.6667));
+    width: min(100%, 500px, calc((100dvh - 345px) * 0.6667));
   }
 }
 

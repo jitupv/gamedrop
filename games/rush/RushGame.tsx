@@ -298,7 +298,7 @@ export default function RushGame() {
           <span className="val">{DAILY_GOAL}</span>
         </div>
         <div className="stat">
-          <span className="lab">Best today</span>
+          <span className="lab">Best</span>
           <span className="val">{best}</span>
         </div>
         <div className="stat">

@@ -371,8 +371,8 @@ export default function TraceGame() {
               <span className="val warn">{endlessBest}</span>
             </div>
             <button type="button" className="stat stat-btn" onClick={backToDaily}>
-              <span className="lab">Mode</span>
-              <span className="val">∞ ⇄</span>
+              <span className="lab">Mode ⇄</span>
+              <span className="val">∞</span>
             </button>
           </>
         ) : (
@@ -382,8 +382,8 @@ export default function TraceGame() {
               <span className="val">{streak}🔥</span>
             </div>
             <button type="button" className="stat stat-btn" onClick={startEndless}>
-              <span className="lab">Mode</span>
-              <span className="val">Daily ⇄</span>
+              <span className="lab">Mode ⇄</span>
+              <span className="val">Daily</span>
             </button>
           </>
         )}

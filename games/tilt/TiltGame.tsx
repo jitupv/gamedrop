@@ -658,15 +658,15 @@ export default function TiltGame() {
               <span className="val">{streak}🔥</span>
             </div>
             <button type="button" className="stat stat-btn" onClick={startEndless}>
-              <span className="lab">Mode</span>
-              <span className="val">Daily ⇄</span>
+              <span className="lab">Mode ⇄</span>
+              <span className="val">Daily</span>
             </button>
           </>
         ) : (
           <>
             <button type="button" className="stat stat-btn" onClick={restartDay}>
-              <span className="lab">Mode</span>
-              <span className="val">∞ ⇄</span>
+              <span className="lab">Mode ⇄</span>
+              <span className="val">∞</span>
             </button>
             <div className="stat">
               <span className="lab">Score</span>
