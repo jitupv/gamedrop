@@ -32,6 +32,7 @@ export default function Celebration({
   countdown?: boolean; // show the live "next challenge at midnight" ticker
 }) {
   const [display, setDisplay] = useState(0);
+  const [hidden, setHidden] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scoreValue = score?.value ?? 0;
 
@@ -124,10 +125,25 @@ export default function Celebration({
   const fmt = (v: number) =>
     score?.decimals ? v.toFixed(score.decimals) : Math.round(v).toLocaleString();
 
+  // dismissed: reveal the board, keep a floating continue pill so nobody gets stuck
+  if (hidden) {
+    return (
+      <button
+        onClick={primary.onClick}
+        className="btn-ink fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-6 py-2.5 shadow-xl"
+      >
+        {primary.label}
+      </button>
+    );
+  }
+
   return (
     <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4 pt-12">
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-20" />
       <div className="panel celebrate-panel text-center max-w-sm relative">
+        <button className="panel-x" aria-label="Close" onClick={() => setHidden(true)}>
+          ✕
+        </button>
         <div className="ribbon">{title}</div>
         {subtitle && <p className="text-stone-500 text-sm mt-3">{subtitle}</p>}
         <div className="mt-4 flex justify-center gap-2">

@@ -5,6 +5,7 @@ import { Cell, HeistCfg, HeistLevel, LEVELS, caughtAt, endlessCfg, genLevel, gen
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
 import Celebration from "@/components/Celebration";
 
 const CW = 900;
@@ -50,6 +51,8 @@ export default function HeistGame() {
   const clearedRef = useRef(0);
   const endlessSeedRef = useRef("");
   const runRef = useRef<{ t: number; lastTick: number; collected: Set<number> } | null>(null);
+  const portraitRef = useRef(false);
+  const viewRef = useRef<View | null>(null);
   const dragRef = useRef(false);
   const dayRef = useRef("");
   const statsRef = useRef<{ gems: number; attempts: number; stars: number }[]>([]);
@@ -135,17 +138,19 @@ export default function HeistGame() {
     startLevel(0);
     if (!window.localStorage.getItem("gd:heist:help")) setShowHelp(true);
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = CW * dpr;
-    canvas.height = CH * dpr;
+    const mq = window.matchMedia("(orientation: portrait)");
+    const applyOrientation = () => {
+      portraitRef.current = mq.matches;
+    };
+    applyOrientation();
+    mq.addEventListener("change", applyOrientation);
 
     const cellFromEvent = (e: PointerEvent): Cell | null => {
       const lv = levelRef.current;
-      if (!lv) return null;
+      const v = viewRef.current;
+      if (!lv || !v) return null;
       const { cell, ox, oy } = geom(lv);
-      const rect = canvas.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width) * CW;
-      const y = ((e.clientY - rect.top) / rect.height) * CH;
+      const { x, y } = pointToGame(v, canvas, e.clientX, e.clientY, CW);
       const c = Math.floor((x - ox) / cell);
       const r = Math.floor((y - oy) / cell);
       if (c < 0 || r < 0 || c >= lv.cols || r >= lv.rows) return null;
@@ -271,7 +276,7 @@ export default function HeistGame() {
       const frac = run ? Math.min(1, (now - run.lastTick) / TICK_MS) : 0;
       const tNow = run ? run.t : path.length - 1; // planning: preview guards at plan-head time
 
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      viewRef.current = applyView(canvas, ctx, CW, CH, portraitRef.current, "#efe8db");
       ctx.fillStyle = "#efe8db";
       ctx.fillRect(0, 0, CW, CH);
 
@@ -326,7 +331,11 @@ export default function HeistGame() {
       ctx.fillStyle = "#8a6d2f";
       ctx.font = `bold ${Math.floor(cell * 0.24)}px ui-sans-serif, system-ui`;
       ctx.textAlign = "center";
-      ctx.fillText("EXIT", ox + (lv.exit.c + 0.5) * cell, oy + (lv.exit.r + 0.62) * cell);
+      ctx.save();
+      ctx.translate(ox + (lv.exit.c + 0.5) * cell, oy + (lv.exit.r + 0.5) * cell);
+      if (portraitRef.current) ctx.rotate(Math.PI / 2); // keep the label upright when rotated
+      ctx.fillText("EXIT", 0, cell * 0.1);
+      ctx.restore();
 
       // planned path
       ctx.fillStyle = "rgba(41,36,32,0.4)";
@@ -439,6 +448,7 @@ export default function HeistGame() {
 
     return () => {
       cancelAnimationFrame(raf);
+      mq.removeEventListener("change", applyOrientation);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
@@ -475,8 +485,8 @@ export default function HeistGame() {
   };
 
   return (
-    <div className="relative w-full">
-      <div className="stat-bar">
+    <div className="relative w-full h-full flex flex-col">
+      <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Museum</span>
           <span className="val">{mode === "endless" ? `#${levelIdx + 1}` : `${levelIdx + 1}/3`}</span>
@@ -522,9 +532,11 @@ export default function HeistGame() {
         )}
       </div>
 
-      <canvas ref={canvasRef} className="board" style={{ aspectRatio: `${CW}/${CH}` }} />
+      <div className="flex-1 min-h-0">
+        <canvas ref={canvasRef} className="board" />
+      </div>
 
-      <div className="mt-3 flex items-center justify-center gap-2">
+      <div className="mt-2 shrink-0 flex items-center justify-center gap-2">
         <button onClick={resetPath} disabled={phase !== "plan"} className="btn-line px-4 py-2 disabled:opacity-40">
           Reset
         </button>
@@ -543,8 +555,20 @@ export default function HeistGame() {
       </p>
 
       {showHelp && (
-        <div className="scrim absolute inset-0 flex items-center justify-center rounded-2xl z-20 p-4">
+        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="panel max-w-sm max-h-full overflow-y-auto">
+            <button
+              className="panel-x"
+              aria-label="Close"
+              onClick={() => {
+                setShowHelp(false);
+                try {
+                  window.localStorage.setItem("gd:heist:help", "1");
+                } catch {}
+              }}
+            >
+              ✕
+            </button>
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
             <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
               <li>

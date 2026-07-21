@@ -43,6 +43,7 @@ body {
 }
 
 .panel {
+  position: relative;
   background: rgba(255, 253, 248, 0.95);
   -webkit-backdrop-filter: blur(16px) saturate(1.15);
   backdrop-filter: blur(16px) saturate(1.15);
@@ -63,6 +64,47 @@ body {
   backdrop-filter: blur(3px);
 }
 
+/* close icon for overlays */
+.panel-x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.panel-x:hover {
+  color: var(--ink);
+  background: rgba(28, 25, 23, 0.06);
+}
+
+/* phones: the board goes full-bleed — no side gaps, squared corners;
+   the stat bar sits flush on top of the game area */
+@media (max-width: 640px) {
+  .board {
+    border-radius: 0;
+  }
+  div.stat-bar {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    margin: 6px 0 0;
+  }
+  .hint {
+    margin-top: 8px;
+    margin-bottom: 8px;
+  }
+}
+
 .lift {
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
@@ -71,10 +113,12 @@ body {
   box-shadow: 0 20px 44px -20px rgba(28, 25, 23, 0.28);
 }
 
-/* the game canvas sits flush inside its card — one frame, not two */
+/* the game canvas fills every pixel the page gives it; the game world
+   scales/rotates to fit inside (see lib/sdk/viewport.ts) */
 .board {
   display: block;
   width: 100%;
+  height: 100%;
   border-radius: 16px;
   touch-action: none;
   user-select: none;
@@ -196,6 +240,27 @@ button.stat-btn .val {
   background: rgba(244, 239, 230, 0.85);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
+}
+
+/* in-game header: dark ink chrome — game mode looks distinct from the site */
+.game-header {
+  background: rgba(28, 25, 23, 0.94);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.game-header .gh-name {
+  color: #f6f1e7;
+}
+.game-header .gh-chip {
+  color: #e8c268;
+}
+.game-header .gh-back {
+  border: 1px solid rgba(246, 241, 231, 0.28);
+  color: #f6f1e7;
+  background: transparent;
+}
+.game-header .gh-back:hover {
+  background: rgba(246, 241, 231, 0.12);
 }
 
 .seg {

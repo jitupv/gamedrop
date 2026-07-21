@@ -17,6 +17,7 @@ import {
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { applyView } from "@/lib/sdk/viewport";
 import Celebration from "@/components/Celebration";
 
 const TILE = 80;
@@ -496,14 +497,12 @@ export default function TiltGame() {
       }
 
       // ---- render ----
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      applyView(canvas, ctx, BOARD, BOARD, false, "#efe8db");
       if (shakeRef.current > 0) {
         shakeRef.current *= 0.86;
         if (shakeRef.current < 0.3) shakeRef.current = 0;
         ctx.translate((Math.random() - 0.5) * shakeRef.current, (Math.random() - 0.5) * shakeRef.current);
       }
-      ctx.fillStyle = "#efe8db";
-      ctx.fillRect(-20, -20, BOARD + 40, BOARD + 40);
 
       // empty cells
       ctx.fillStyle = "rgba(41,36,32,0.05)";
@@ -634,8 +633,8 @@ export default function TiltGame() {
   };
 
   return (
-    <div className="relative w-full">
-      <div className="stat-bar">
+    <div className="relative w-full h-full flex flex-col">
+      <div className="stat-bar shrink-0">
         {mode === "daily" ? (
           <>
             <div className="stat">
@@ -686,7 +685,7 @@ export default function TiltGame() {
         )}
       </div>
       {mode === "daily" && (
-        <div className="h-1 rounded-full bg-stone-300/50 mb-3 overflow-hidden">
+        <div className="h-1 bg-stone-300/50 overflow-hidden shrink-0">
           <div
             className="h-full rounded-full bg-amber-700 transition-all duration-300"
             style={{ width: `${Math.min(100, (score / cfg.target) * 100)}%` }}
@@ -694,8 +693,10 @@ export default function TiltGame() {
         </div>
       )}
 
-      <canvas ref={canvasRef} className="board" style={{ aspectRatio: "1/1" }} />
-      <p className="hint">
+      <div className="flex-1 min-h-0">
+        <canvas ref={canvasRef} className="board" />
+      </div>
+      <p className="hint shrink-0">
         hold &amp; drag to preview — release to commit
         <span className="hidden sm:inline"> · arrow keys work too</span> ·{" "}
         {mode === "daily" ? (
@@ -707,8 +708,20 @@ export default function TiltGame() {
       </p>
 
       {showHelp && (
-        <div className="scrim absolute inset-0 flex items-center justify-center rounded-2xl z-20 p-4">
+        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="panel max-w-sm max-h-full overflow-y-auto">
+            <button
+              className="panel-x"
+              aria-label="Close"
+              onClick={() => {
+                setShowHelp(false);
+                try {
+                  window.localStorage.setItem("gd:tilt:help", "1");
+                } catch {}
+              }}
+            >
+              ✕
+            </button>
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">
               How to play
             </h2>

@@ -6,6 +6,7 @@ import Celebration from "@/components/Celebration";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
 import Countdown from "@/components/Countdown";
 
 const CW = 900;
@@ -54,6 +55,8 @@ export default function SonarGame() {
   const [endlessBest, setEndlessBest] = useState(0);
 
   const modeRef = useRef<Mode>("daily");
+  const portraitRef = useRef(false);
+  const viewRef = useRef<View | null>(null);
   const budgetRef = useRef(0);
   const clearedRef = useRef(0);
   const runSeedRef = useRef("");
@@ -141,13 +144,17 @@ export default function SonarGame() {
     startLevel(0);
     if (!window.localStorage.getItem("gd:sonar:help")) setShowHelp(true);
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = CW * dpr;
-    canvas.height = CH * dpr;
+    const mq = window.matchMedia("(orientation: portrait)");
+    const applyOrientation = () => {
+      portraitRef.current = mq.matches;
+    };
+    applyOrientation();
+    mq.addEventListener("change", applyOrientation);
 
     const toGame = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      return { x: ((e.clientX - rect.left) / rect.width) * CW, y: ((e.clientY - rect.top) / rect.height) * CH };
+      const v = viewRef.current;
+      if (!v) return { x: -9999, y: -9999 };
+      return pointToGame(v, canvas, e.clientX, e.clientY, CW);
     };
     const onDown = (e: PointerEvent) => {
       canvas.setPointerCapture(e.pointerId);
@@ -293,7 +300,7 @@ export default function SonarGame() {
       }
 
       // ---- render ----
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      viewRef.current = applyView(canvas, ctx, CW, CH, portraitRef.current, "#0b0d14");
       ctx.fillStyle = "#0b0d14";
       ctx.fillRect(0, 0, CW, CH);
 
@@ -377,6 +384,7 @@ export default function SonarGame() {
 
     return () => {
       cancelAnimationFrame(raf);
+      mq.removeEventListener("change", applyOrientation);
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
@@ -406,8 +414,8 @@ export default function SonarGame() {
   };
 
   return (
-    <div className="relative w-full">
-      <div className="stat-bar">
+    <div className="relative w-full h-full flex flex-col">
+      <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Maze</span>
           <span className="val">{levelIdx + 1}/3</span>
@@ -453,8 +461,8 @@ export default function SonarGame() {
         )}
       </div>
 
-      <div className="relative">
-        <canvas ref={canvasRef} className="board" style={{ aspectRatio: `${CW}/${CH}` }} />
+      <div className="relative flex-1 min-h-0">
+        <canvas ref={canvasRef} className="board" />
         <button
           onClick={doPing}
           className="btn-ink absolute bottom-3 right-3 w-14 h-14 rounded-full text-lg"
@@ -471,8 +479,20 @@ export default function SonarGame() {
       </p>
 
       {showHelp && (
-        <div className="scrim absolute inset-0 flex items-center justify-center rounded-2xl z-20 p-4">
+        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="panel max-w-sm max-h-full overflow-y-auto">
+            <button
+              className="panel-x"
+              aria-label="Close"
+              onClick={() => {
+                setShowHelp(false);
+                try {
+                  window.localStorage.setItem("gd:sonar:help", "1");
+                } catch {}
+              }}
+            >
+              ✕
+            </button>
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
             <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
               <li>

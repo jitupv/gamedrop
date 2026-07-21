@@ -6,6 +6,7 @@ import Celebration from "@/components/Celebration";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { View, applyView, inScreenSpace, pointToGame } from "@/lib/sdk/viewport";
 import Countdown from "@/components/Countdown";
 
 const MEMORIZE_S = 3;
@@ -49,6 +50,7 @@ export default function TraceGame() {
   const clearedRef = useRef(0);
   const runSeedRef = useRef("");
   const portraitRef = useRef(false);
+  const viewRef = useRef<View | null>(null);
   const targetsRef = useRef<Stroke[][]>([]);
   const strokesRef = useRef<Stroke[]>([]);
   const curStrokeRef = useRef<Stroke | null>(null);
@@ -179,10 +181,6 @@ export default function TraceGame() {
     startRound(0);
     if (!window.localStorage.getItem("gd:trace:help")) setShowHelp(true);
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = CW * dpr;
-    canvas.height = CH * dpr;
-
     // portrait phones: rotate the sheet 90° for a full-height drawing area
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -193,14 +191,9 @@ export default function TraceGame() {
     mq.addEventListener("change", applyOrientation);
 
     const toGame = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      if (portraitRef.current) {
-        return {
-          x: CW - ((e.clientY - rect.top) / rect.height) * CW,
-          y: ((e.clientX - rect.left) / rect.width) * CH,
-        };
-      }
-      return { x: ((e.clientX - rect.left) / rect.width) * CW, y: ((e.clientY - rect.top) / rect.height) * CH };
+      const v = viewRef.current;
+      if (!v) return { x: -9999, y: -9999 };
+      return pointToGame(v, canvas, e.clientX, e.clientY, CW);
     };
     const onDown = (e: PointerEvent) => {
       if (phaseRef.current !== "draw") return;
@@ -254,16 +247,8 @@ export default function TraceGame() {
       if (phaseRef.current === "memorize" && phaseAge >= MEMORIZE_S) setPhaseBoth("draw");
       if (phaseRef.current === "peek" && phaseAge >= PEEK_S) setPhaseBoth("draw");
 
-      const wantW = (portraitRef.current ? CH : CW) * dpr;
-      if (canvas.width !== wantW) {
-        canvas.width = wantW;
-        canvas.height = (portraitRef.current ? CW : CH) * dpr;
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (portraitRef.current) {
-        ctx.translate(0, CW);
-        ctx.rotate(-Math.PI / 2);
-      }
+      const view = applyView(canvas, ctx, CW, CH, portraitRef.current, "#f9f5ec");
+      viewRef.current = view;
       ctx.fillStyle = "#f9f5ec";
       ctx.fillRect(0, 0, CW, CH);
 
@@ -290,19 +275,15 @@ export default function TraceGame() {
 
       if (phaseRef.current === "memorize") {
         const remain = Math.ceil(MEMORIZE_S - phaseAge);
-        // keep the countdown text upright even when the sheet is rotated
-        const upright = (txt: string, x: number, y: number, font: string) => {
-          ctx.save();
-          ctx.translate(x, y);
-          if (portraitRef.current) ctx.rotate(Math.PI / 2);
+        // countdown pinned to screen space — always upright, always top-right
+        inScreenSpace(ctx, view, (elW) => {
           ctx.fillStyle = "rgba(41,36,32,0.8)";
-          ctx.font = font;
           ctx.textAlign = "center";
-          ctx.fillText(txt, 0, 0);
-          ctx.restore();
-        };
-        upright(String(remain), CW - 60, 70, "bold 46px ui-sans-serif, system-ui");
-        upright("memorize it", CW - 60, 96, "600 15px ui-sans-serif, system-ui");
+          ctx.font = "bold 46px ui-sans-serif, system-ui";
+          ctx.fillText(String(remain), elW - 56, 66);
+          ctx.font = "600 15px ui-sans-serif, system-ui";
+          ctx.fillText("memorize it", elW - 56, 92);
+        });
       }
 
       raf = requestAnimationFrame(draw);
@@ -341,8 +322,8 @@ export default function TraceGame() {
   };
 
   return (
-    <div className="relative w-full">
-      <div className="stat-bar">
+    <div className="relative w-full h-full flex flex-col">
+      <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Sketch</span>
           <span className="val">{mode === "endless" ? `#${endlessIdx + 1}` : `${round + 1}/3`}</span>
@@ -389,13 +370,11 @@ export default function TraceGame() {
         )}
       </div>
 
-      <canvas
-        ref={canvasRef}
-        className="board cursor-crosshair"
-        style={{ aspectRatio: portrait ? `${CH}/${CW}` : `${CW}/${CH}` }}
-      />
+      <div className="flex-1 min-h-0">
+        <canvas ref={canvasRef} className="board cursor-crosshair" />
+      </div>
 
-      <div className="mt-3 flex items-center justify-center gap-2">
+      <div className="mt-2 shrink-0 flex items-center justify-center gap-2">
         <button onClick={clearInk} disabled={phase !== "draw" || !hasInk} className="btn-line px-4 py-2 disabled:opacity-40">
           Clear
         </button>
@@ -411,8 +390,20 @@ export default function TraceGame() {
       </p>
 
       {showHelp && (
-        <div className="scrim absolute inset-0 flex items-center justify-center rounded-2xl z-20 p-4">
+        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="panel max-w-sm max-h-full overflow-y-auto">
+            <button
+              className="panel-x"
+              aria-label="Close"
+              onClick={() => {
+                setShowHelp(false);
+                try {
+                  window.localStorage.setItem("gd:trace:help", "1");
+                } catch {}
+              }}
+            >
+              ✕
+            </button>
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
             <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
               <li>

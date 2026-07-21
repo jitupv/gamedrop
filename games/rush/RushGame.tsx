@@ -25,6 +25,7 @@ import {
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { applyView, inScreenSpace } from "@/lib/sdk/viewport";
 import Countdown from "@/components/Countdown";
 
 const COLORS = ["#c96f4a", "#d9a441", "#8a9a5b", "#6f8fa8", "#9d7a94", "#b25d6d"];
@@ -51,6 +52,7 @@ export default function RushGame() {
   const spawnerRef = useRef<ReturnType<typeof makeSpawner> | null>(null);
   const crashPairRef = useRef<Car[]>([]);
   const shakeRef = useRef(0);
+  const portraitRef = useRef(false);
   const dayRef = useRef("");
 
   const setPhaseBoth = (p: Phase) => {
@@ -96,9 +98,12 @@ export default function RushGame() {
     }
     if (!window.localStorage.getItem("gd:rush:help")) setShowHelp(true);
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = CW * dpr;
-    canvas.height = CH * dpr;
+    const mq = window.matchMedia("(orientation: portrait)");
+    const applyOrientation = () => {
+      portraitRef.current = mq.matches;
+    };
+    applyOrientation();
+    mq.addEventListener("change", applyOrientation);
 
     const onDown = () => tap();
     const onKey = (e: KeyboardEvent) => {
@@ -183,7 +188,7 @@ export default function RushGame() {
       }
 
       // ---- render ----
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const view = applyView(canvas, ctx, CW, CH, portraitRef.current, "#efe8db");
       if (shakeRef.current > 0) {
         shakeRef.current *= 0.86;
         if (shakeRef.current < 0.3) shakeRef.current = 0;
@@ -245,22 +250,21 @@ export default function RushGame() {
         ctx.stroke();
       }
 
-      // score, center-top
-      if (phaseRef.current !== "ready") {
-        ctx.fillStyle = "rgba(41,36,32,0.85)";
-        ctx.font = "bold 42px ui-sans-serif, system-ui";
+      // HUD text pinned to screen space — stays upright even when the world rotates
+      inScreenSpace(ctx, view, (elW, elH) => {
         ctx.textAlign = "center";
-        ctx.fillText(String(scoreRef.current), XC, 52);
-      }
-
-      if (phaseRef.current === "ready") {
-        ctx.fillStyle = "rgba(41,36,32,0.75)";
-        ctx.font = "bold 26px ui-sans-serif, system-ui";
-        ctx.textAlign = "center";
-        ctx.fillText("tap to open the intersection", XC, YC - 100);
-        ctx.font = "15px ui-sans-serif, system-ui";
-        ctx.fillText(`every tap switches the light · ${DAILY_GOAL} cars = daily goal`, XC, YC - 72);
-      }
+        if (phaseRef.current !== "ready") {
+          ctx.fillStyle = "rgba(41,36,32,0.85)";
+          ctx.font = "bold 42px ui-sans-serif, system-ui";
+          ctx.fillText(String(scoreRef.current), elW / 2, 54);
+        } else {
+          ctx.fillStyle = "rgba(41,36,32,0.75)";
+          ctx.font = "bold 24px ui-sans-serif, system-ui";
+          ctx.fillText("tap to open the intersection", elW / 2, elH / 2 - 110);
+          ctx.font = "15px ui-sans-serif, system-ui";
+          ctx.fillText(`every tap switches the light · ${DAILY_GOAL} cars = daily goal`, elW / 2, elH / 2 - 84);
+        }
+      });
 
       raf = requestAnimationFrame(draw);
     };
@@ -268,6 +272,7 @@ export default function RushGame() {
 
     return () => {
       cancelAnimationFrame(raf);
+      mq.removeEventListener("change", applyOrientation);
       canvas.removeEventListener("pointerdown", onDown);
       window.removeEventListener("keydown", onKey);
     };
@@ -287,8 +292,8 @@ export default function RushGame() {
   };
 
   return (
-    <div className="relative w-full">
-      <div className="stat-bar">
+    <div className="relative w-full h-full flex flex-col">
+      <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Cars</span>
           <span className="val">{score}</span>
@@ -307,16 +312,30 @@ export default function RushGame() {
         </div>
       </div>
 
-      <canvas ref={canvasRef} className="board" style={{ aspectRatio: `${CW}/${CH}` }} />
+      <div className="flex-1 min-h-0">
+        <canvas ref={canvasRef} className="board" />
+      </div>
 
-      <p className="hint">
+      <p className="hint shrink-0">
         tap anywhere<span className="hidden sm:inline"> (or space)</span> to switch the light · don&apos;t
         let them touch · <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
       {showHelp && (
-        <div className="scrim absolute inset-0 flex items-center justify-center rounded-2xl z-20 p-4">
+        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="panel max-w-sm max-h-full overflow-y-auto">
+            <button
+              className="panel-x"
+              aria-label="Close"
+              onClick={() => {
+                setShowHelp(false);
+                try {
+                  window.localStorage.setItem("gd:rush:help", "1");
+                } catch {}
+              }}
+            >
+              ✕
+            </button>
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
             <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
               <li>

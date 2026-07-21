@@ -18,6 +18,7 @@ import {
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
 import Celebration from "@/components/Celebration";
 
 type Status = "idle" | "aiming" | "flying" | "resetting" | "holeDone" | "courseDone" | "runOver";
@@ -62,6 +63,7 @@ export default function OrbitGame() {
   const [portrait, setPortrait] = useState(false);
 
   const portraitRef = useRef(false);
+  const viewRef = useRef<View | null>(null);
   const modeRef = useRef<Mode>("daily");
   const fuelRef = useRef(START_FUEL);
   const clearedRef = useRef(0);
@@ -170,17 +172,9 @@ export default function OrbitGame() {
     mq.addEventListener("change", applyOrientation);
 
     const toGame = (e: PointerEvent): Vec => {
-      const rect = canvas.getBoundingClientRect();
-      if (portraitRef.current) {
-        return {
-          x: W - ((e.clientY - rect.top) / rect.height) * W,
-          y: ((e.clientX - rect.left) / rect.width) * H,
-        };
-      }
-      return {
-        x: ((e.clientX - rect.left) / rect.width) * W,
-        y: ((e.clientY - rect.top) / rect.height) * H,
-      };
+      const v = viewRef.current;
+      if (!v) return { x: -9999, y: -9999 };
+      return pointToGame(v, canvas, e.clientX, e.clientY, W);
     };
 
     const onDown = (e: PointerEvent) => {
@@ -321,16 +315,7 @@ export default function OrbitGame() {
       }
 
       // ---- render ----
-      const wantW = (portraitRef.current ? H : W) * dpr;
-      if (canvas.width !== wantW) {
-        canvas.width = wantW;
-        canvas.height = (portraitRef.current ? W : H) * dpr;
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (portraitRef.current) {
-        ctx.translate(0, W);
-        ctx.rotate(-Math.PI / 2);
-      }
+      viewRef.current = applyView(canvas, ctx, W, H, portraitRef.current, "#05060f");
       if (shakeRef.current > 0) {
         shakeRef.current *= 0.85;
         if (shakeRef.current < 0.3) shakeRef.current = 0;
@@ -516,8 +501,8 @@ export default function OrbitGame() {
   const prior = typeof window !== "undefined" ? loadResult("orbit", dayRef.current) : null;
 
   return (
-    <div className="relative w-full">
-      <div className="stat-bar">
+    <div className="relative w-full h-full flex flex-col">
+      <div className="stat-bar shrink-0">
         {mode === "daily" ? (
           <>
             <div className="stat">
@@ -574,12 +559,10 @@ export default function OrbitGame() {
           </>
         )}
       </div>
-      <canvas
-        ref={canvasRef}
-        className="board cursor-crosshair"
-        style={{ aspectRatio: portrait ? `${H}/${W}` : `${W}/${H}` }}
-      />
-      <p className="hint">
+      <div className="flex-1 min-h-0">
+        <canvas ref={canvasRef} className="board cursor-crosshair" />
+      </div>
+      <p className="hint shrink-0">
         drag anywhere · release to launch · grab the ⭐ on the way ·{" "}
         {mode === "daily" ? (
           <button onClick={startEndless}>endless mode →</button>
