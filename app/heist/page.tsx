@@ -6,14 +6,14 @@ import HeistGame from "@/games/heist/HeistGame";
 
 export default function HeistPage() {
   return (
-    <>
+    <div className="game-frame">
       <GameHeader name="HEIST" />
-      <main className="fit-screen mx-auto w-full max-w-5xl px-0 sm:px-4">
+      <main className="flex-1 min-h-0 mx-auto w-full max-w-5xl px-0 sm:px-4 flex flex-col">
         <ChallengeBanner render={(v) => `A friend dares you: pull today's heists in under ${v} plans 💎`} />
         <div className="flex-1 min-h-0">
           <HeistGame />
         </div>
       </main>
-    </>
+    </div>
   );
 }

@@ -399,6 +399,17 @@ button.stat-btn .val {
 
 /* ============ 100vh game screens ============ */
 
+/* game pages: a fixed frame pinned to the physical screen — immune to mobile
+   URL-bar viewport games; the page itself can never scroll */
+.game-frame {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .fit-screen {
   height: calc(100vh - 49px);
   height: calc(100dvh - 49px);

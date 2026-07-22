@@ -10,7 +10,7 @@ export default function GameHeader({ name }: { name: string }) {
   useEffect(() => setNum(dayNumber()), []);
 
   return (
-    <header className="game-header sticky top-0 z-30">
+    <header className="game-header shrink-0 z-30">
       <div className="mx-auto max-w-5xl px-3 h-12 flex items-center justify-between">
         <Link
           href="/"
