@@ -17,6 +17,7 @@ import {
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { isMuted } from "@/lib/sdk/sound";
 import { applyView } from "@/lib/sdk/viewport";
 import Celebration from "@/components/Celebration";
 
@@ -131,7 +132,7 @@ class Sfx {
     }
   }
   private blip(freq: number, dur: number, type: OscillatorType, gain: number) {
-    if (!this.ctx) return;
+    if (!this.ctx || isMuted()) return;
     const o = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     o.type = type;
@@ -329,7 +330,7 @@ export default function TiltGame() {
       setDayTotal(dayTotalRef.current);
       sfxRef.current.win();
       if (levelIdxRef.current >= LEVELS.length - 1) {
-        saveResult("tilt", dayRef.current, { score: dayTotalRef.current, won: true });
+        saveResult("tilt", dayRef.current, { score: dayTotalRef.current, won: true }, true);
         setStreak(getStreak("tilt", dayRef.current));
         setPhaseBoth("dayDone");
       } else {

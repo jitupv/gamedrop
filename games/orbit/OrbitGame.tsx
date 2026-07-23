@@ -18,6 +18,7 @@ import {
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
 import Celebration from "@/components/Celebration";
 
@@ -209,6 +210,7 @@ export default function OrbitGame() {
       trailRef.current = [];
       holeLaunchesRef.current += 1;
       setHoleLaunches(holeLaunchesRef.current);
+      chirp(150, 430, 0.2, "triangle", 0.06);
       setStatusBoth("flying");
     };
 
@@ -282,6 +284,7 @@ export default function OrbitGame() {
 
         if (!starTakenRef.current && Math.hypot(hole.star.x - probe.x, hole.star.y - probe.y) < STAR_R + 6) {
           starTakenRef.current = true;
+          blip(1046, 0.14, "triangle", 0.08);
           burst(hole.star.x, hole.star.y, 50, 16);
         }
 
@@ -292,6 +295,9 @@ export default function OrbitGame() {
           if (outcome === "crashed") {
             burst(probe.x, probe.y, 20, 22);
             shakeRef.current = 10;
+            blip(75, 0.3, "sawtooth", 0.09);
+          } else {
+            chirp(320, 70, 0.35, "sine", 0.05); // drifted into the void
           }
           setStatusBoth("resetting");
           window.setTimeout(() => {

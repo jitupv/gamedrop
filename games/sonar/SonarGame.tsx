@@ -6,6 +6,7 @@ import Celebration from "@/components/Celebration";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
 import Countdown from "@/components/Countdown";
 
@@ -127,6 +128,7 @@ export default function SonarGame() {
 
   const doPing = () => {
     if (phaseRef.current !== "playing") return;
+    chirp(1250, 320, 0.38, "sine", 0.08); // the sonar ping — the game's voice
     pingsRef.current.push({ x: playerRef.current.x, y: playerRef.current.y, t: performance.now() });
     pingCountRef.current += 1;
     setPings(pingCountRef.current);
@@ -264,6 +266,7 @@ export default function SonarGame() {
           statsRef.current = [...statsRef.current];
           statsRef.current[levelIdxRef.current] = stat;
           setLevelStats([...statsRef.current]);
+          [523, 659, 784].forEach((f, i) => window.setTimeout(() => blip(f, 0.12, "triangle", 0.07), i * 90));
           if (modeRef.current === "endless") {
             clearedRef.current += 1;
             setCleared(clearedRef.current);

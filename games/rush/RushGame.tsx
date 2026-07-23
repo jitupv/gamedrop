@@ -25,6 +25,7 @@ import {
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { blip, chirp } from "@/lib/sdk/sound";
 import { applyView, inScreenSpace } from "@/lib/sdk/viewport";
 import Countdown from "@/components/Countdown";
 
@@ -69,6 +70,7 @@ export default function RushGame() {
     startRef.current = performance.now();
     lastSpawnRef.current = performance.now();
     crashPairRef.current = [];
+    blip(520, 0.09, "triangle", 0.06);
     setPhaseBoth("run");
   };
 
@@ -79,6 +81,7 @@ export default function RushGame() {
     }
     if (phaseRef.current === "run") {
       lightRef.current = lightRef.current === "H" ? "V" : "H";
+      blip(680, 0.05, "square", 0.045); // the light clacks over
     }
   };
 
@@ -119,6 +122,7 @@ export default function RushGame() {
     let last = performance.now();
 
     const endRun = () => {
+      chirp(280, 45, 0.5, "sawtooth", 0.1);
       const s = scoreRef.current;
       saveResult("rush", dayRef.current, { score: s, won: s >= DAILY_GOAL }, true);
       if (s > bestRef.current) {

@@ -6,6 +6,7 @@ import Celebration from "@/components/Celebration";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, inScreenSpace, pointToGame } from "@/lib/sdk/viewport";
 import Countdown from "@/components/Countdown";
 
@@ -112,9 +113,11 @@ export default function TraceGame() {
     let s = similarity(target, strokesRef.current);
     if (peekedRef.current) s = Math.max(0, Math.round((s - PEEK_COST) * 10) / 10);
 
+    blip(600, 0.07, "triangle", 0.05);
     if (modeRef.current === "endless") {
       setLastScore(s);
       if (s < FAIL_LINE) {
+        chirp(400, 170, 0.32, "sawtooth", 0.06);
         heartsRef.current -= 1;
         setHearts(heartsRef.current);
         if (heartsRef.current <= 0) {

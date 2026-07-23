@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { isMuted } from "@/lib/sdk/sound";
 import Countdown from "./Countdown";
 
 const CONFETTI_COLORS = ["#c96f4a", "#d9a441", "#8a9a5b", "#6f8fa8", "#9d7a94", "#b25d6d", "#d97706"];
@@ -52,7 +53,7 @@ export default function Celebration({
 
   // one-shot jingle + confetti on mount
   useEffect(() => {
-    if (stars > 0) {
+    if (stars > 0 && !isMuted()) {
       try {
         const AC =
           window.AudioContext ||

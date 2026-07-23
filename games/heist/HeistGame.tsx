@@ -5,6 +5,7 @@ import { Cell, HeistCfg, HeistLevel, LEVELS, caughtAt, endlessCfg, genLevel, gen
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
 import Celebration from "@/components/Celebration";
 
@@ -122,6 +123,7 @@ export default function HeistGame() {
     attemptsRef.current += 1;
     setAttempts(attemptsRef.current);
     runRef.current = { t: 0, lastTick: performance.now(), collected: new Set() };
+    blip(440, 0.09, "triangle", 0.06);
     setPhaseBoth("run");
   };
 
@@ -255,6 +257,7 @@ export default function HeistGame() {
             const oldPos = path[t - 1];
             const newPos = path[t];
             if (caughtAt(lv.guards, oldPos, newPos, t)) {
+              chirp(520, 130, 0.38, "sawtooth", 0.08);
               setPhaseBoth("caught");
               window.setTimeout(() => {
                 if (phaseRef.current === "caught") {
@@ -264,7 +267,10 @@ export default function HeistGame() {
               }, 900);
             } else {
               lv.gems.forEach((gm, i) => {
-                if (gm.c === newPos.c && gm.r === newPos.r) run.collected.add(i);
+                if (gm.c === newPos.c && gm.r === newPos.r) {
+                  run.collected.add(i);
+                  blip(880, 0.11, "triangle", 0.07);
+                }
               });
               if (newPos.c === lv.exit.c && newPos.r === lv.exit.r) finishLevel(run.collected.size);
             }
@@ -375,7 +381,21 @@ export default function HeistGame() {
         ctx.stroke();
       });
 
-      // guards: live position (interpolated during run) + planning ghost at plan-head time
+      // characters are drawn as emoji — instantly readable, no legend needed;
+      // counter-rotated so they stay upright when the board rotates on phones
+      const glyph = (txt: string, x: number, y: number, size: number, alpha = 1) => {
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.translate(x, y);
+        if (portraitRef.current) ctx.rotate(Math.PI / 2);
+        ctx.font = `${Math.round(size)}px serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(txt, 0, 0);
+        ctx.restore();
+      };
+
+      // guards 👮: live position (interpolated during run) + planning ghost at plan-head time
       for (const g of lv.guards) {
         let gx: number;
         let gy: number;
@@ -389,14 +409,7 @@ export default function HeistGame() {
           gx = ox + (a.c + 0.5) * cell;
           gy = oy + (a.r + 0.5) * cell;
         }
-        ctx.fillStyle = "#c96f4a";
-        ctx.beginPath();
-        ctx.arc(gx, gy, cell * 0.28, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "rgba(41,36,32,0.55)";
-        ctx.beginPath();
-        ctx.arc(gx, gy - cell * 0.06, cell * 0.09, 0, Math.PI * 2);
-        ctx.fill();
+        glyph("👮", gx, gy, cell * 0.72);
 
         // ghost: where this guard will be when your plan reaches its current length
         if (phaseRef.current === "plan" && path.length > 1) {
@@ -407,13 +420,14 @@ export default function HeistGame() {
           ctx.strokeStyle = "rgba(201,111,74,0.75)";
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.arc(hx, hy, cell * 0.26, 0, Math.PI * 2);
+          ctx.arc(hx, hy, cell * 0.32, 0, Math.PI * 2);
           ctx.stroke();
           ctx.setLineDash([]);
+          glyph("👮", hx, hy, cell * 0.55, 0.4);
         }
       }
 
-      // thief
+      // your thief 🥷
       let tx: number;
       let ty: number;
       if (phaseRef.current === "run" && run && run.t < path.length) {
@@ -426,16 +440,7 @@ export default function HeistGame() {
         tx = ox + (a.c + 0.5) * cell;
         ty = oy + (a.r + 0.5) * cell;
       }
-      ctx.fillStyle = "#6f8fa8";
-      ctx.beginPath();
-      ctx.arc(tx, ty, cell * 0.28, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(41,36,32,0.5)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      // little mask band
-      ctx.fillStyle = "#292420";
-      ctx.fillRect(tx - cell * 0.22, ty - cell * 0.1, cell * 0.44, cell * 0.1);
+      glyph("🥷", tx, ty, cell * 0.74);
 
       if (phaseRef.current === "caught") {
         ctx.fillStyle = "rgba(201,111,74,0.25)";
@@ -545,7 +550,8 @@ export default function HeistGame() {
         </button>
       </div>
       <p className="hint">
-        drag a route to the EXIT · dashed ghosts = guards at your plan&apos;s last step ·{" "}
+        you are 🥷 · drag your route to the EXIT · faint 👮 = where guards will be at your plan&apos;s last
+        step ·{" "}
         {mode === "daily" ? (
           <button onClick={startEndless}>endless mode →</button>
         ) : (
@@ -572,11 +578,11 @@ export default function HeistGame() {
             <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
             <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
               <li>
-                <span className="text-stone-900 font-semibold">1. Plan the whole robbery first.</span>{" "}
-                Drag (or tap cell by cell) from your thief to the EXIT — through the gems if you dare.
+                <span className="text-stone-900 font-semibold">1. You are the ninja 🥷 — plan the whole robbery first.</span>{" "}
+                Drag (or tap cell by cell) from your 🥷 to the EXIT — through the gems 🔶 if you dare.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">2. Guards patrol the dotted loops</span> —
+                <span className="text-stone-900 font-semibold">2. Guards 👮 patrol the dotted loops</span> —
                 one step for every step you take. The{" "}
                 <span className="text-stone-900 font-semibold">dashed ghost</span> shows where each guard
                 will be at your plan&apos;s final step. Tap your path&apos;s head to undo.

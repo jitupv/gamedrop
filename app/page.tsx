@@ -3,17 +3,19 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Countdown from "@/components/Countdown";
-import { GAMES } from "@/lib/games";
+import { GAMES, featuredGameId } from "@/lib/games";
 import { dayNumber } from "@/lib/sdk/daily";
-
-const TODAY_ID = "tilt"; // this week's featured drop
 
 export default function Home() {
   const [num, setNum] = useState<number | null>(null);
-  useEffect(() => setNum(dayNumber()), []);
+  const [todayId, setTodayId] = useState(GAMES[0].id);
+  useEffect(() => {
+    setNum(dayNumber());
+    setTodayId(featuredGameId()); // Friday drops rotate themselves
+  }, []);
 
-  const today = GAMES.find((g) => g.id === TODAY_ID)!;
-  const vault = GAMES.filter((g) => g.id !== TODAY_ID);
+  const today = GAMES.find((g) => g.id === todayId)!;
+  const vault = GAMES.filter((g) => g.id !== todayId);
 
   return (
     <>
@@ -58,7 +60,6 @@ export default function Home() {
 
         {/* the vault */}
         <div className="mt-12">
-          <div className="rule-ornament max-w-xs mx-auto mb-6">◆</div>
           <h3 className="font-serif text-2xl font-bold text-stone-900 text-center mb-6">The Vault</h3>
           <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 max-w-2xl mx-auto">
             {vault.map((g) =>
@@ -87,6 +88,19 @@ export default function Home() {
           Every game: a daily challenge (same for everyone) + an endless mode with no bottom.
           <br />
           Free to play · streaks & records saved on your device
+        </p>
+        <p className="mt-4 text-center text-xs text-stone-400">
+          <Link href="/about" className="hover:text-stone-700 underline-offset-2 hover:underline">
+            About
+          </Link>
+          {" · "}
+          <Link href="/privacy" className="hover:text-stone-700 underline-offset-2 hover:underline">
+            Privacy
+          </Link>
+          {" · "}
+          <Link href="/terms" className="hover:text-stone-700 underline-offset-2 hover:underline">
+            Terms
+          </Link>
         </p>
       </main>
     </>

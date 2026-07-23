@@ -57,3 +57,41 @@ export function getStreak(game: string, today: string): number {
   if (s.lastDay === today || s.lastDay === prevKey(today)) return s.count;
   return 0;
 }
+
+export interface DayRecord {
+  day: string;
+  score: number;
+  won: boolean;
+}
+
+// every daily result ever saved on this device, oldest first
+export function getAllResults(game: string): DayRecord[] {
+  const out: DayRecord[] = [];
+  if (typeof window === "undefined") return out;
+  try {
+    const prefix = `gd:${game}:`;
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (!key || !key.startsWith(prefix)) continue;
+      const day = key.slice(prefix.length);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      const v = read<DayResult>(key);
+      if (v && typeof v.score === "number") out.push({ day, score: v.score, won: !!v.won });
+    }
+  } catch {}
+  return out.sort((a, b) => (a.day < b.day ? -1 : 1));
+}
+
+// longest run of consecutive winning days
+export function maxStreak(records: DayRecord[]): number {
+  let best = 0;
+  let run = 0;
+  let prev = "";
+  for (const r of records) {
+    if (!r.won) continue;
+    run = prev && prevKey(r.day) === prev ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = r.day;
+  }
+  return best;
+}
