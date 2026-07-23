@@ -1,4 +1,5 @@
 // Local-first progress: results + streaks live in localStorage until accounts arrive.
+import { track } from "./analytics";
 import { prevKey } from "./daily";
 
 export interface DayResult {
@@ -35,7 +36,10 @@ export function saveResult(game: string, day: string, result: DayResult, higherI
   const existingIsBetter =
     existing?.won && (higherIsBetter ? existing.score >= result.score : existing.score <= result.score);
   if (!existingIsBetter) write(`gd:${game}:${day}`, result);
-  if (result.won && !existing?.won) bumpStreak(game, day);
+  if (result.won && !existing?.won) {
+    bumpStreak(game, day);
+    track("daily_completed", { game, score: result.score });
+  }
 }
 
 interface Streak {

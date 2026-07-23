@@ -1,5 +1,6 @@
 // Spoiler-free share artifacts — the free growth channel.
 // Multi-line emoji grids (the Wordle pattern): tell the story, spoil nothing.
+import { track } from "./analytics";
 
 export function buildShare(game: string, num: number, lines: string[], challengeUrl?: string): string {
   return [`${game} #${num}`, ...lines, challengeUrl ? `🎯 beat me: ${challengeUrl}` : "🪐 gamedrop.day"].join("\n");
@@ -20,6 +21,7 @@ export type ShareOutcome = "shared" | "copied" | "failed";
 
 // mobile: opens the native share sheet (WhatsApp etc.); desktop: clipboard
 export async function shareResult(text: string): Promise<ShareOutcome> {
+  track("share_clicked", { game: text.split("\n")[0]?.split(" ")[0]?.toLowerCase() });
   if (typeof navigator !== "undefined" && navigator.share) {
     try {
       await navigator.share({ text });
