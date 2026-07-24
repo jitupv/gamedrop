@@ -15,8 +15,9 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
   const [records, setRecords] = useState<DayRecord[]>([]);
   const [streak, setStreak] = useState(0);
   const [boardMode, setBoardMode] = useState<"daily" | "endless">("daily");
-  // undefined = loading, null = unavailable
+  // undefined = loading, null = fetch failed
   const [board, setBoard] = useState<Board | null | undefined>(undefined);
+  const enabled = leaderboardEnabled();
 
   useEffect(() => {
     setRecords(getAllResults(gameId));
@@ -26,10 +27,7 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
   const higherIsBetter = meta?.higherIsBetter ?? false;
 
   useEffect(() => {
-    if (!leaderboardEnabled()) {
-      setBoard(null);
-      return;
-    }
+    if (!leaderboardEnabled()) return;
     let on = true;
     setBoard(undefined);
     const daily = boardMode === "daily";
@@ -102,13 +100,13 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
           </p>
         )}
 
-        {/* ---- global leaderboard ---- */}
-        {board !== null && (
-          <div className="lb">
-            <div className="lb-head">
-              <span className="overline">
-                <FontAwesomeIcon icon={faGlobe} width={10} height={10} /> Global board
-              </span>
+        {/* ---- global leaderboard (always visible — states explain themselves) ---- */}
+        <div className="lb">
+          <div className="lb-head">
+            <span className="overline">
+              <FontAwesomeIcon icon={faGlobe} width={10} height={10} /> Global board
+            </span>
+            {enabled && (
               <div className="lb-tabs">
                 <button
                   type="button"
@@ -125,13 +123,23 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
                   Endless
                 </button>
               </div>
-            </div>
-
-            {board === undefined && <p className="lb-note">Loading the board…</p>}
-            {board && board.rows.length === 0 && (
-              <p className="lb-note">No scores yet — be the first in the world!</p>
             )}
-            {board && board.rows.length > 0 && (
+          </div>
+
+          {!enabled && (
+            <p className="lb-note">
+              The global leaderboard is warming up — coming online soon. Your scores are safe on
+              this device.
+            </p>
+          )}
+          {enabled && board === undefined && <p className="lb-note">Loading the board…</p>}
+          {enabled && board === null && (
+            <p className="lb-note">Couldn&apos;t load the board — check your connection.</p>
+          )}
+          {enabled && board && board.rows.length === 0 && (
+            <p className="lb-note">No scores yet — be the first in the world!</p>
+          )}
+          {enabled && board && board.rows.length > 0 && (
               <>
                 <ol className="lb-rows">
                   {board.rows.map((r, i) => (
@@ -159,7 +167,6 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
               </>
             )}
           </div>
-        )}
 
         {recent.length > 0 && (
           <div className="border-t pt-3 mt-4" style={{ borderColor: "var(--line)" }}>
