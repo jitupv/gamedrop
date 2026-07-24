@@ -528,10 +528,72 @@ body {
   color: var(--ink);
 }
 .hm-brand span { color: var(--gx); }
-.hm-nav {
+/* mobile: everything folds into the burger menu; desktop: roomy inline nav */
+.hm-nav { display: none; }
+.hm-burger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--ink) 22%, transparent);
+  color: var(--muted);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.hm-burger:hover {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--ink) 45%, transparent);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+@media (min-width: 760px) {
+  .hm-nav {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+  }
+  .hm-burger { display: none; }
+}
+
+.hm-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: 8px 14px;
+  border-top: 1px solid var(--line);
+}
+.hm-menu a,
+.hm-menu > button {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 10px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-align: left;
+}
+.hm-menu a:hover,
+.hm-menu > button:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+.hm-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--muted);
+}
+@media (min-width: 760px) {
+  .hm-menu { display: none; }
 }
 .hm-nav a {
   color: var(--muted);
@@ -563,7 +625,16 @@ body {
   color: var(--muted);
   transition: color 0.15s ease, border-color 0.15s ease;
 }
-.theme-toggle:hover { color: var(--ink); border-color: color-mix(in srgb, var(--ink) 45%, transparent); }
+.theme-toggle:hover {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--ink) 45%, transparent);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.theme-toggle:focus-visible,
+.hm-burger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 2px;
+}
 
 /* -- hero -- */
 .hm-hero {

@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowRight, faCheck, faCircleUser, faFire, faHourglassHalf, faStar } from "@fortawesome/free-solid-svg-icons";
+import {
+  faArrowRight,
+  faBars,
+  faCheck,
+  faCircleUser,
+  faFire,
+  faHourglassHalf,
+  faStar,
+  faXmark,
+} from "@fortawesome/free-solid-svg-icons";
 import AccountModal from "@/components/AccountModal";
 import GameArt from "@/components/GameArt";
 import HomeBoard from "@/components/HomeBoard";
@@ -81,6 +90,7 @@ export default function Home() {
   const [friday, setFriday] = useState("-");
   const [stickyHidden, setStickyHidden] = useState(true);
   const [showAccount, setShowAccount] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const ctaRef = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
@@ -159,7 +169,48 @@ export default function Home() {
               </span>
             )}
           </nav>
+          <button
+            type="button"
+            className="hm-burger"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <FontAwesomeIcon icon={menuOpen ? faXmark : faBars} width={15} height={15} />
+          </button>
         </div>
+        {menuOpen && (
+          <div className="hm-menu hm-wrap">
+            <a href="#board" onClick={() => setMenuOpen(false)}>
+              Leaderboard
+            </a>
+            <a href="#vault" onClick={() => setMenuOpen(false)}>
+              The Vault
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAccount(true);
+                setMenuOpen(false);
+              }}
+            >
+              Your player card{" "}
+              <FontAwesomeIcon icon={faCircleUser} width={15} height={15} />
+            </button>
+            <div className="hm-menu-row">
+              <span>Theme</span>
+              <ThemeToggle />
+            </div>
+            {streak > 0 && (
+              <div className="hm-menu-row">
+                <span>Daily streak</span>
+                <span className="hm-streak">
+                  <FontAwesomeIcon icon={faFire} width={12} height={12} /> {streak}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       <section className="hm-hero">
