@@ -26,7 +26,7 @@ export default function Countdown({ prefix = "New challenge in" }: { prefix?: st
 
   return (
     <span className="tabular-nums">
-      {prefix} <span className="font-semibold text-stone-600">{left}</span>
+      {prefix} <span className="font-semibold tx-ink">{left}</span>
     </span>
   );
 }

@@ -1,10 +1,15 @@
 "use client";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+
 import { useEffect, useRef, useState } from "react";
 import { CH, CW, Stroke, genSketch, genTargets, similarity } from "./engine";
 import Celebration from "@/components/Celebration";
-import { dayNumber, todayKey } from "@/lib/sdk/daily";
+import { challengeNumber, todayKey } from "@/lib/sdk/daily";
+import ModeSwitch from "@/components/ModeSwitch";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import { reportEndlessBest } from "@/lib/sdk/leaderboard";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, inScreenSpace, pointToGame } from "@/lib/sdk/viewport";
@@ -124,6 +129,7 @@ export default function TraceGame() {
           if (clearedRef.current > readTraceEndlessBest()) {
             try {
               window.localStorage.setItem("gd:trace:endless-best", String(clearedRef.current));
+              reportEndlessBest("trace", clearedRef.current);
             } catch {}
             setEndlessBest(clearedRef.current);
           }
@@ -136,6 +142,7 @@ export default function TraceGame() {
         if (clearedRef.current > readTraceEndlessBest()) {
           try {
             window.localStorage.setItem("gd:trace:endless-best", String(clearedRef.current));
+            reportEndlessBest("trace", clearedRef.current);
           } catch {}
           setEndlessBest(clearedRef.current);
         }
@@ -178,7 +185,7 @@ export default function TraceGame() {
     if (!ctx) return;
 
     dayRef.current = todayKey();
-    setNum(dayNumber());
+    setNum(challengeNumber("trace"));
     setStreak(getStreak("trace", dayRef.current));
     targetsRef.current = genTargets(dayRef.current);
     startRound(0);
@@ -313,7 +320,15 @@ export default function TraceGame() {
       scores.map((s) => `${dot(s)}${s}%`).join(" "),
       `✏️ ${avg}% from memory`,
     ], challengeUrl(avg));
-    const outcome = await shareResult(text);
+    const outcome = await shareResult(text, {
+      game: "TRACE",
+      num,
+      emoji: "✏️",
+      accent: "#6fa8ff",
+      headline: `${avg}% accuracy`,
+      lines: [scores.map((s) => `${dot(s)}${s}%`).join(" ")],
+      streak,
+    });
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);
   };
@@ -326,6 +341,7 @@ export default function TraceGame() {
 
   return (
     <div className="relative w-full h-full flex flex-col">
+      <ModeSwitch endless={mode === "endless"} onDaily={backToDaily} onEndless={startEndless} />
       <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Sketch</span>
@@ -335,7 +351,7 @@ export default function TraceGame() {
           [0, 1, 2].map((i) => (
             <div className="stat" key={i}>
               <span className="lab">#{i + 1}</span>
-              <span className={`val${scores[i] === undefined ? " text-stone-400" : ""}`}>
+              <span className={`val${scores[i] === undefined ? " tx-soft" : ""}`}>
                 {scores[i] === undefined ? "—" : `${scores[i]}%`}
               </span>
             </div>
@@ -354,10 +370,6 @@ export default function TraceGame() {
               <span className="lab">Best</span>
               <span className="val warn">{endlessBest}</span>
             </div>
-            <button type="button" className="stat stat-btn" onClick={backToDaily}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">∞</span>
-            </button>
           </>
         ) : (
           <>
@@ -365,10 +377,6 @@ export default function TraceGame() {
               <span className="lab">Streak</span>
               <span className="val">{streak}🔥</span>
             </div>
-            <button type="button" className="stat stat-btn" onClick={startEndless}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">Daily</span>
-            </button>
           </>
         )}
       </div>
@@ -405,24 +413,24 @@ export default function TraceGame() {
                 } catch {}
               }}
             >
-              ✕
+              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
             </button>
-            <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
-            <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
+            <h2 className="font-serif text-2xl font-bold tx-ink mb-4 text-center">How to play</h2>
+            <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
-                <span className="text-stone-900 font-semibold">1. A drawing appears for 3 seconds.</span>{" "}
+                <span className="tx-ink font-semibold">1. A drawing appears for 3 seconds.</span>{" "}
                 Burn it into your memory.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">2. It vanishes — now redraw it</span> in
+                <span className="tx-ink font-semibold">2. It vanishes — now redraw it</span> in
                 the same place, same size, freehand.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">3. Press Done</span> to see the original
+                <span className="tx-ink font-semibold">3. Press Done</span> to see the original
                 over your attempt and get your accuracy score. One Peek per sketch costs {PEEK_COST}%.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">4. Three sketches a day,</span> harder
+                <span className="tx-ink font-semibold">4. Three sketches a day,</span> harder
                 each time. Your day score is the average.
               </li>
             </ol>
@@ -444,10 +452,10 @@ export default function TraceGame() {
       {phase === "scored" && mode === "endless" && (
         <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
           <div className="panel text-center max-w-sm">
-            <h2 className="font-serif text-xl font-bold text-stone-900 mb-1">
+            <h2 className="font-serif text-xl font-bold tx-ink mb-1">
               {lastScore >= FAIL_LINE ? `${lastScore}% — it lives on` : `${lastScore}% — 💔 heart lost`}
             </h2>
-            <p className="text-xs text-stone-500 mb-3">
+            <p className="text-xs tx-muted mb-3">
               {"♥".repeat(hearts)} · {cleared} cleared · best {endlessBest}
             </p>
             <button onClick={() => loadSketch(endlessIdx + 1)} className="btn-ink px-6 py-2">
@@ -472,11 +480,11 @@ export default function TraceGame() {
       {phase === "scored" && mode === "daily" && round < 2 && (
         <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
           <div className="panel text-center max-w-sm">
-            <h2 className="font-serif text-xl font-bold text-stone-900 mb-1">
+            <h2 className="font-serif text-xl font-bold tx-ink mb-1">
               {scores[round] >= 75 ? "Photographic! " : scores[round] >= 50 ? "Not bad — " : "Rough — "}
               {scores[round]}%
             </h2>
-            <p className="text-xs text-stone-500 mb-3">ink = original · amber = you</p>
+            <p className="text-xs tx-muted mb-3">ink = original · amber = you</p>
             <button onClick={() => startRound(round + 1)} className="btn-ink px-6 py-2">
               Sketch {round + 2} — harder →
             </button>
@@ -487,22 +495,30 @@ export default function TraceGame() {
       {phase === "scored" && mode === "daily" && round >= 2 && (
         <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
           <div className="panel text-center max-w-sm">
-            <h2 className="font-serif text-xl font-bold text-stone-900 mb-1">
+            <h2 className="font-serif text-xl font-bold tx-ink mb-1">
               TRACE #{num}: {avg}% from memory
             </h2>
-            <p className="text-xs text-stone-500 mb-3">
+            <p className="text-xs tx-muted mb-3">
               {scores.map((s) => `${s}%`).join(" · ")}
             </p>
             <div className="flex gap-3 justify-center">
               <button onClick={share} className="btn-ink px-5 py-2">
                 {copied ? "Shared ✓" : "Share result"}
               </button>
-              <button onClick={restartDay} className="btn-line px-5 py-2">
-                Beat it
+              <button onClick={startEndless} className="btn-line px-5 py-2">
+                Keep going ∞
               </button>
             </div>
-            {prior?.won && <p className="text-xs text-stone-400 mt-3">Today&apos;s best: {prior.score}%</p>}
-            <p className="text-xs text-stone-400 mt-2">
+            <p className="text-xs tx-soft mt-3">
+              {endlessBest > 0
+                ? `Your endless best: ${endlessBest} sketches — beat it?`
+                : "Endless sketches, three hearts — how far can you go?"}
+            </p>
+            <button onClick={restartDay} className="text-xs tx-muted underline underline-offset-2 mt-2">
+              or replay today&apos;s sketches
+            </button>
+            {prior?.won && <p className="text-xs tx-soft mt-2">Today&apos;s best: {prior.score}%</p>}
+            <p className="text-xs tx-soft mt-2">
               <Countdown prefix="New sketches in" />
             </p>
           </div>

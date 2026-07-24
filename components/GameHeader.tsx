@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faArrowLeft, faChartColumn, faVolumeHigh, faVolumeXmark } from "@fortawesome/free-solid-svg-icons";
 import { GAMES } from "@/lib/games";
-import { dayNumber } from "@/lib/sdk/daily";
+import { challengeNumber } from "@/lib/sdk/daily";
 import { isMuted, setMuted } from "@/lib/sdk/sound";
 import StatsModal from "./StatsModal";
+import ThemeToggle from "./ThemeToggle";
 
-// In-game header: dark ink chrome — the game takes over the top bar.
+// In-game header: same glass chrome as the homepage, flips with the theme.
 export default function GameHeader({ gameId }: { gameId: string }) {
   const [num, setNum] = useState<number | null>(null);
   const [muted, setMutedState] = useState(false);
@@ -15,7 +18,7 @@ export default function GameHeader({ gameId }: { gameId: string }) {
   const name = GAMES.find((g) => g.id === gameId)?.name ?? gameId.toUpperCase();
 
   useEffect(() => {
-    setNum(dayNumber());
+    setNum(challengeNumber(gameId));
     setMutedState(isMuted());
   }, []);
 
@@ -28,33 +31,35 @@ export default function GameHeader({ gameId }: { gameId: string }) {
   return (
     <header className="game-header shrink-0 z-30">
       <div className="mx-auto max-w-5xl px-3 h-12 flex items-center justify-between">
-        <div className="flex items-center gap-2 w-24">
+        <div className="flex items-center gap-1.5 w-28">
           <Link
             href="/"
             aria-label="Back to GAMEDROP"
-            className="gh-back w-9 h-9 flex items-center justify-center rounded-full text-lg transition"
+            className="gh-back w-8 h-8 flex items-center justify-center rounded-full text-[13px] transition"
           >
-            ←
+            <FontAwesomeIcon icon={faArrowLeft} width={13} height={13} />
           </Link>
+          <ThemeToggle />
         </div>
-        <span className="gh-name font-serif text-xl font-bold tracking-wide">{name}</span>
-        <div className="flex items-center gap-2 w-24 justify-end">
+        <span className="gh-name text-lg font-extrabold">{name}</span>
+        <div className="flex items-center gap-1.5 w-28 justify-end">
           <button
             onClick={toggleMute}
             aria-label={muted ? "Unmute sounds" : "Mute sounds"}
-            className="gh-back w-9 h-9 flex items-center justify-center rounded-full text-sm transition"
+            aria-pressed={muted}
+            className="gh-back w-8 h-8 flex items-center justify-center rounded-full text-[13px] transition"
           >
-            {muted ? "🔇" : "🔊"}
+            <FontAwesomeIcon icon={muted ? faVolumeXmark : faVolumeHigh} width={14} height={14} />
           </button>
           <button
             onClick={() => setShowStats(true)}
             aria-label="Your stats"
-            className="gh-back w-9 h-9 flex items-center justify-center rounded-full text-sm transition"
+            className="gh-back w-8 h-8 flex items-center justify-center rounded-full text-[13px] transition"
           >
-            ▦
+            <FontAwesomeIcon icon={faChartColumn} width={13} height={13} />
           </button>
-          <span className="gh-chip text-[10px] font-bold tracking-[0.18em]">
-            {num !== null ? `#${num}` : ""}
+          <span className="gh-chip text-[10px] font-bold tracking-[0.14em] tabular-nums">
+            {num !== null ? `#${String(num).padStart(2, "0")}` : ""}
           </span>
         </div>
       </div>

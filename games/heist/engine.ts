@@ -31,9 +31,9 @@ export interface HeistCfg {
 }
 
 export const LEVELS: HeistCfg[] = [
-  { cols: 11, rows: 8, guards: 1, gems: 2 },
   { cols: 12, rows: 9, guards: 2, gems: 3 },
-  { cols: 13, rows: 9, guards: 3, gems: 3 },
+  { cols: 14, rows: 10, guards: 3, gems: 4 },
+  { cols: 16, rows: 11, guards: 4, gems: 5 },
 ];
 
 // endless mode: museums keep growing and gaining guards, forever
@@ -93,13 +93,28 @@ function plainBFS(lv: Pick<HeistLevel, "cols" | "rows" | "walls">, from: Cell, t
   return false;
 }
 
-// can the thief reach the exit at all, dodging guards? (moves only — no waiting)
-function spacetimeBFS(lv: HeistLevel, horizon = 160): boolean {
-  const seen = new Set<string>([`${lv.start.c},${lv.start.r},0`]);
-  const q: { c: number; r: number; t: number }[] = [{ c: lv.start.c, r: lv.start.r, t: 0 }];
+// full-loot proof: can the thief collect EVERY gem and then reach the exit,
+// dodging guards the whole way? State = (cell, time, gem bitmask); the exit
+// only counts with all gems in the bag — matching the in-game locked vault.
+function spacetimeBFS(lv: HeistLevel, horizon = 220): boolean {
+  const fullMask = (1 << lv.gems.length) - 1;
+  const gemAt = new Map<number, number>();
+  lv.gems.forEach((gm, i) => gemAt.set(gm.r * lv.cols + gm.c, i));
+  const startMask = gemAt.has(lv.start.r * lv.cols + lv.start.c)
+    ? 1 << (gemAt.get(lv.start.r * lv.cols + lv.start.c) as number)
+    : 0;
+
+  const cells = lv.cols * lv.rows;
+  const key = (c: number, r: number, t: number, mask: number) =>
+    ((t * cells + r * lv.cols + c) << 5) | mask; // gems ≤ 5 → mask fits in 5 bits
+  const seen = new Set<number>([key(lv.start.c, lv.start.r, 0, startMask)]);
+  const q: { c: number; r: number; t: number; mask: number }[] = [
+    { c: lv.start.c, r: lv.start.r, t: 0, mask: startMask },
+  ];
   while (q.length > 0) {
-    const cur = q.shift() as { c: number; r: number; t: number };
-    if (cur.c === lv.exit.c && cur.r === lv.exit.r) return true;
+    if (seen.size > 600000) return false; // state-space blowout — reject, try next seed
+    const cur = q.shift() as { c: number; r: number; t: number; mask: number };
+    if (cur.c === lv.exit.c && cur.r === lv.exit.r && cur.mask === fullMask) return true;
     if (cur.t >= horizon) continue;
     for (const [dc, dr] of [
       [1, 0],
@@ -111,11 +126,13 @@ function spacetimeBFS(lv: HeistLevel, horizon = 160): boolean {
       const r = cur.r + dr;
       if (c < 0 || r < 0 || c >= lv.cols || r >= lv.rows || lv.walls[r][c]) continue;
       const t = cur.t + 1;
-      const key = `${c},${r},${t % 840}`; // 840 = lcm-friendly wrap for small loop lengths
-      if (seen.has(key)) continue;
+      const gi = gemAt.get(r * lv.cols + c);
+      const mask = gi === undefined ? cur.mask : cur.mask | (1 << gi);
+      const k = key(c, r, t, mask);
+      if (seen.has(k)) continue;
       if (caughtAt(lv.guards, { c: cur.c, r: cur.r }, { c, r }, t)) continue;
-      seen.add(key);
-      q.push({ c, r, t });
+      seen.add(k);
+      q.push({ c, r, t, mask });
     }
   }
   return false;

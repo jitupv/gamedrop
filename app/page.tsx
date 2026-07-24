@@ -1,108 +1,331 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import Countdown from "@/components/Countdown";
+import { useEffect, useRef, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faArrowRight, faCheck, faFire, faHourglassHalf, faStar } from "@fortawesome/free-solid-svg-icons";
+import GameArt from "@/components/GameArt";
+import ThemeToggle from "@/components/ThemeToggle";
 import { GAMES, featuredGameId } from "@/lib/games";
-import { dayNumber } from "@/lib/sdk/daily";
+import { dayNumber, todayKey } from "@/lib/sdk/daily";
+import { getStreak, loadResult } from "@/lib/sdk/storage";
+
+// homepage-only copy & styling per game — gameplay meta lives in lib/games.ts
+// `drop` = release order in the catalog story; the featured game is the newest drop
+const HOME: Record<
+  string,
+  { accent: string; genre: string; desc: string; lede: [string, string, string]; diff: 1 | 2 | 3; time: string }
+> = {
+  tilt: {
+    accent: "#ff6f61",
+    genre: "Match puzzle",
+    desc: "Slide entire rows and columns. Line up three. Chain combos before the moves run out.",
+    lede: ["Swipe whole rows.", "Match the candy.", "Chain combos before the moves run out."],
+    diff: 2,
+    time: "3–5 min",
+  },
+  orbit: {
+    accent: "#9d8cff",
+    genre: "Physics",
+    desc: "One probe, real gravity. Sling around planets and thread the needle — no direct shots.",
+    lede: ["One probe, real gravity.", "Sling around planets.", "Direct shots don't count here."],
+    diff: 3,
+    time: "2–4 min",
+  },
+  sonar: {
+    accent: "#3fd6c0",
+    genre: "Memory maze",
+    desc: "You're blind in a maze. Each ping lights it up for a heartbeat — remember the walls.",
+    lede: ["Ping the dark.", "Memorize the maze.", "Escape in as few pings as your nerves allow."],
+    diff: 2,
+    time: "2–4 min",
+  },
+  heist: {
+    accent: "#3fbf7f",
+    genre: "Stealth logic",
+    desc: "Plan the perfect route past patrolling guards — they move when you move.",
+    lede: ["Case the museum.", "Plan every step.", "The guards move when you move."],
+    diff: 3,
+    time: "3–6 min",
+  },
+  rush: {
+    accent: "#ffa23e",
+    genre: "Reflex",
+    desc: "You control the traffic lights, not the cars. Keep the intersection flowing — no crashes.",
+    lede: ["You are the traffic light.", "Time every green.", "Don't let them touch."],
+    diff: 2,
+    time: "2–3 min",
+  },
+  trace: {
+    accent: "#6fa8ff",
+    genre: "Drawing",
+    desc: "One stroke, no undo. Trace the target shape as precisely as your hand allows.",
+    lede: ["See it once.", "Draw it blind.", "One stroke, no undo."],
+    diff: 1,
+    time: "1–3 min",
+  },
+};
+
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
 
 export default function Home() {
   const [num, setNum] = useState<number | null>(null);
   const [todayId, setTodayId] = useState(GAMES[0].id);
+  const [streak, setStreak] = useState(0);
+  const [doneToday, setDoneToday] = useState<Record<string, boolean>>({});
+  const [midnight, setMidnight] = useState("—:—:—");
+  const [friday, setFriday] = useState("—");
+  const [stickyHidden, setStickyHidden] = useState(true);
+  const ctaRef = useRef<HTMLAnchorElement>(null);
+
   useEffect(() => {
     setNum(dayNumber());
     setTodayId(featuredGameId()); // Friday drops rotate themselves
+
+    const key = todayKey();
+    const done: Record<string, boolean> = {};
+    let best = 0;
+    for (const g of GAMES) {
+      done[g.id] = !!loadResult(g.id, key)?.won;
+      best = Math.max(best, getStreak(g.id, key));
+    }
+    setDoneToday(done);
+    setStreak(best);
+
+    const tick = () => {
+      const now = new Date();
+      const mid = new Date(now);
+      mid.setHours(24, 0, 0, 0);
+      const s = Math.floor((mid.getTime() - now.getTime()) / 1000);
+      setMidnight(`${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`);
+
+      const fri = new Date(now);
+      fri.setHours(0, 0, 0, 0);
+      const add = (5 - fri.getDay() + 7) % 7 || 7;
+      fri.setDate(fri.getDate() + add);
+      const ds = Math.floor((fri.getTime() - now.getTime()) / 1000);
+      setFriday(`${Math.floor(ds / 86400)}d ${pad(Math.floor(ds / 3600) % 24)}h`);
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
   }, []);
 
+  // the mobile sticky bar hides while the hero CTA is on screen
+  useEffect(() => {
+    const cta = ctaRef.current;
+    if (!cta || !("IntersectionObserver" in window)) return;
+    const obs = new IntersectionObserver(
+      (entries) => setStickyHidden(entries[0].isIntersecting),
+      { threshold: 0.2 }
+    );
+    obs.observe(cta);
+    return () => obs.disconnect();
+  }, [todayId]);
+
   const today = GAMES.find((g) => g.id === todayId)!;
-  const vault = GAMES.filter((g) => g.id !== todayId);
+  const meta = HOME[today.id];
+  // past drops, newest first — the featured game is always the latest drop
+  const vault = GAMES.filter((g) => g.id !== todayId).sort((a, b) => b.drop - a.drop);
+  const chNum = num !== null ? `#${pad(num)}` : "#—";
 
   return (
-    <>
-      <header className="header-glass sticky top-0 z-30 border-b border-stone-300/70">
-        <div className="mx-auto max-w-5xl px-4 h-12 flex items-center justify-center">
-          <span className="text-lg font-black tracking-[0.25em] text-stone-900">
-            GAME<span className="text-amber-700">DROP</span>
-          </span>
+    <div className="hm" style={{ "--g": meta.accent } as React.CSSProperties}>
+      <header className="hm-header">
+        <div className="hm-wrap hm-header-inner">
+          <Link href="/" className="hm-brand">
+            GAMEDROP<span>.</span>
+          </Link>
+          <nav className="hm-nav">
+            <a href="#vault">The Vault</a>
+            <ThemeToggle />
+            {streak > 0 && (
+              <span className="hm-streak" title="Your daily streak">
+                <FontAwesomeIcon icon={faFire} width={12} height={12} /> {streak}
+              </span>
+            )}
+          </nav>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 pt-8 pb-16">
-        <div className="text-center mb-8">
-          <p className="overline mb-2">
-            {num !== null ? `Daily challenge #${num} · ` : ""}new game every Friday
-          </p>
-          <h1 className="font-serif text-3xl sm:text-4xl font-bold text-stone-900 leading-tight">
-            One brand-new game,
-            <br />
-            every Friday.
-          </h1>
-          <p className="text-sm sm:text-base text-stone-500 mt-3 max-w-md mx-auto leading-relaxed">
-            Same challenge for everyone, fresh at midnight. Beat it, brag about it, come back
-            tomorrow.
-          </p>
-        </div>
+      <section className="hm-hero">
+        <div className="hm-wrap hm-hero-grid">
+          <div>
+            <p className="hm-eyebrow">
+              Drop {pad(today.drop)} <span>·</span> this week&apos;s game
+            </p>
+            <h1 className="hm-title">
+              {today.name}
+              <span>.</span>
+            </h1>
+            <p className="hm-lede">
+              {meta.lede[0]} <strong>{meta.lede[1]}</strong> {meta.lede[2]}
+            </p>
 
-        {/* today's drop */}
-        <Link
-          href={today.path}
-          className="card lift block max-w-md mx-auto p-6 text-center border-amber-700/25"
-        >
-          <p className="overline mb-3">This week&apos;s game</p>
-          <div className="text-5xl mb-2">{today.emoji}</div>
-          <h2 className="font-serif text-3xl font-bold text-stone-900">{today.name}</h2>
-          <p className="text-sm text-stone-500 mt-1 mb-5">{today.tagline}</p>
-          <span className="btn-ink px-8 py-3 text-base">Play today&apos;s challenge →</span>
-          <p className="text-xs text-stone-400 mt-4">
-            <Countdown prefix="Next challenge in" />
-          </p>
-        </Link>
+            <div className="hm-chips">
+              <span className="hm-chip">{meta.time}</span>
+              <span className="hm-chip">Free</span>
+              <span className="hm-chip">Nothing to install</span>
+            </div>
 
-        {/* the vault */}
-        <div className="mt-12">
-          <h3 className="font-serif text-2xl font-bold text-stone-900 text-center mb-6">The Vault</h3>
-          <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 max-w-2xl mx-auto">
-            {vault.map((g) =>
-              g.status === "live" ? (
-                <Link key={g.id} href={g.path} className="card lift p-4 text-center">
-                  <div className="text-3xl mb-1">{g.emoji}</div>
-                  <h4 className="font-serif text-lg font-bold text-stone-900">{g.name}</h4>
-                  <p className="text-[11px] text-stone-500 mt-0.5 leading-snug">{g.tagline}</p>
-                  <span className="inline-block mt-3 text-xs font-semibold text-stone-900">
-                    Play →
-                  </span>
-                </Link>
-              ) : (
-                <div key={g.id} className="card p-4 text-center opacity-60">
-                  <div className="text-3xl mb-1">{g.emoji}</div>
-                  <h4 className="font-serif text-lg font-bold text-stone-900">{g.name}</h4>
-                  <p className="text-[11px] text-stone-500 mt-0.5 leading-snug">{g.tagline}</p>
-                  <span className="inline-block mt-3 text-xs text-stone-400">Dropping soon</span>
-                </div>
-              )
-            )}
+            <div className="hm-cta">
+              <Link ref={ctaRef} href={today.path} className="hm-play">
+                Play today&apos;s challenge{" "}
+                <span className="arr">
+                  <FontAwesomeIcon icon={faArrowRight} width={15} height={15} />
+                </span>
+              </Link>
+              <p className="hm-meta">
+                Challenge <b>{chNum}</b> — same puzzle for everyone · fresh puzzle at midnight{" "}
+                <b className="hm-count">{midnight}</b>
+              </p>
+              {streak > 0 && (
+                <p className="hm-streaknote">
+                  <b>
+                    <FontAwesomeIcon icon={faFire} width={12} height={12} /> {streak}-day streak
+                  </b>{" "}
+                  — today&apos;s challenge keeps it alive.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="hm-scene">
+            <GameArt id={today.id} />
           </div>
         </div>
+      </section>
 
-        <p className="mt-12 text-center text-xs text-stone-400">
-          Every game: a daily challenge (same for everyone) + an endless mode with no bottom.
-          <br />
-          Free to play · streaks & records saved on your device
-        </p>
-        <p className="mt-4 text-center text-xs text-stone-400">
-          <Link href="/about" className="hover:text-stone-700 underline-offset-2 hover:underline">
-            About
+      <section className="hm-strip">
+        <div className="hm-wrap hm-strip-inner">
+          <div className="hm-fact">
+            <span className="k">Fridays</span>
+            <span className="v">A brand-new game drops</span>
+            <span className="d">
+              Next drop in <b>{friday}</b>
+            </span>
+          </div>
+          <div className="hm-fact">
+            <span className="k">Midnight</span>
+            <span className="v">Every game gets a fresh challenge</span>
+            <span className="d">Same puzzle for the whole world. One shot at the daily.</span>
+          </div>
+          <div className="hm-fact">
+            <span className="k">The Vault</span>
+            <span className="v">Old drops stay playable</span>
+            <span className="d">Daily + endless mode in every game, forever free.</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="hm-next hm-wrap">
+        <div className="hm-next-card">
+          <div className="hm-next-body">
+            <span className="k">Drop {pad(today.drop + 1)} · next Friday</span>
+            <h3>Something new is coming.</h3>
+            <p>
+              A brand-new original game joins the Vault every Friday. No reruns, no clones — we
+              build them from scratch.
+            </p>
+            <span className="hm-next-count">
+              <FontAwesomeIcon icon={faHourglassHalf} width={12} height={12} /> Drops in {friday}
+            </span>
+          </div>
+          <div className="hm-next-art" aria-hidden="true">
+            <span className="scan" />
+            <span className="q">?</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="hm-vault hm-wrap" id="vault">
+        <div className="hm-vhead">
+          <h2>The Vault</h2>
+          <p>Every game we&apos;ve ever dropped — each with its own daily challenge and endless mode.</p>
+        </div>
+
+        <div className="hm-grid">
+          {[today, ...vault].map((g) => {
+            const m = HOME[g.id];
+            const isFeatured = g.id === todayId;
+            const isDone = doneToday[g.id];
+            return (
+              <Link
+                key={g.id}
+                href={g.path}
+                className="hm-card"
+                style={{ "--g": m.accent } as React.CSSProperties}
+              >
+                <div className="hm-thumb">
+                  {isFeatured && (
+                    <span className="hm-flag">
+                      <FontAwesomeIcon icon={faStar} width={10} height={10} /> This week
+                    </span>
+                  )}
+                  {!isFeatured && isDone && (
+                    <span className="hm-flag done">
+                      <FontAwesomeIcon icon={faCheck} width={10} height={10} /> Done today
+                    </span>
+                  )}
+                  <GameArt id={g.id} />
+                </div>
+                <div className="hm-gbody">
+                  <span className="hm-dropnum">Drop {pad(g.drop)}</span>
+                  <div className="hm-grow">
+                    <span className="hm-gname">{g.name}</span>
+                    <span className="hm-genre">{m.genre}</span>
+                  </div>
+                  <p className="hm-desc">{m.desc}</p>
+                  <div className="hm-gmeta">
+                    <span>
+                      <span className="hm-dots">
+                        {[1, 2, 3].map((d) => (
+                          <i key={d} className={d <= m.diff ? "on" : ""} />
+                        ))}
+                      </span>
+                      {m.time}
+                    </span>
+                    <span className="hm-playlink">
+                      {isDone ? "Endless mode" : "Play daily"}{" "}
+                      <FontAwesomeIcon icon={faArrowRight} width={11} height={11} />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      <footer className="hm-foot">
+        <div className="hm-wrap hm-foot-inner">
+          <span className="hm-fbrand">
+            GAMEDROP<span>.</span>
+          </span>
+          <nav>
+            <Link href="/about">About</Link>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
+          </nav>
+          <span className="hm-fnote">New game every Friday · streaks live on your device</span>
+        </div>
+      </footer>
+
+      <div className={`hm-sticky ${stickyHidden ? "is-off" : ""}`}>
+        <div className="hm-sticky-inner">
+          <div className="s-info">
+            <span className="s-name">
+              {today.name} — Challenge {chNum}
+            </span>
+            <span className="s-sub">Fresh puzzle in {midnight}</span>
+          </div>
+          <Link href={today.path} className="s-btn">
+            Play now
           </Link>
-          {" · "}
-          <Link href="/privacy" className="hover:text-stone-700 underline-offset-2 hover:underline">
-            Privacy
-          </Link>
-          {" · "}
-          <Link href="/terms" className="hover:text-stone-700 underline-offset-2 hover:underline">
-            Terms
-          </Link>
-        </p>
-      </main>
-    </>
+        </div>
+      </div>
+    </div>
   );
 }

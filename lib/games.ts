@@ -7,11 +7,12 @@ export interface GameMeta {
   path: string;
   unit: string; // what the daily score measures
   higherIsBetter: boolean;
+  drop: number; // release order in the catalog — highest = this week's drop
 }
 
 // Friday drop rotation — the featured game advances automatically each week.
 // When a NEW game ships, put its id first in line for the upcoming Friday.
-const FIRST_DROP_UTC = Date.UTC(2026, 6, 20); // week 0 begins (TILT's week)
+const FIRST_DROP_UTC = Date.UTC(2026, 6, 24); // Fri Jul 24 2026 — TILT's week; flips every Friday
 const ROTATION = ["tilt", "orbit", "sonar", "heist", "rush", "trace"];
 
 export function featuredGameId(now = new Date()): string {
@@ -23,6 +24,7 @@ export function featuredGameId(now = new Date()): string {
 export const GAMES: GameMeta[] = [
   {
     id: "tilt",
+    drop: 6,
     name: "TILT",
     tagline: "Swipe the whole board. Match. Chain. Repeat.",
     status: "live",
@@ -33,6 +35,7 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: "orbit",
+    drop: 1,
     name: "ORBIT",
     tagline: "Golf, but the course is a solar system.",
     status: "live",
@@ -43,6 +46,7 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: "sonar",
+    drop: 2,
     name: "SONAR",
     tagline: "You're blind. Sound is your eyes.",
     status: "live",
@@ -53,6 +57,7 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: "heist",
+    drop: 3,
     name: "HEIST",
     tagline: "Plan the perfect robbery. Then watch it go wrong.",
     status: "live",
@@ -63,6 +68,7 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: "rush",
+    drop: 4,
     name: "RUSH",
     tagline: "You are the traffic light. Don't let them touch.",
     status: "live",
@@ -73,6 +79,7 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: "trace",
+    drop: 5,
     name: "TRACE",
     tagline: "See it. Lose it. Draw it from memory.",
     status: "live",

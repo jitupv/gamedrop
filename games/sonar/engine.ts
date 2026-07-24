@@ -15,9 +15,9 @@ export interface SonarLevel {
 }
 
 export const LEVELS = [
-  { cols: 13, rows: 9 },
   { cols: 17, rows: 11 },
-  { cols: 21, rows: 13 },
+  { cols: 23, rows: 15 },
+  { cols: 29, rows: 17 },
 ];
 
 export function genMaze(dayKey: string, levelIdx: number): SonarLevel {

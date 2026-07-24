@@ -1,6 +1,8 @@
-// Local-first progress: results + streaks live in localStorage until accounts arrive.
+// Local-first progress: results + streaks live in localStorage; wins also go
+// to the global leaderboard when Supabase is configured (no-op otherwise).
 import { track } from "./analytics";
 import { prevKey } from "./daily";
+import { submitScore } from "./leaderboard";
 
 export interface DayResult {
   score: number; // game-specific: launches for ORBIT (lower = better)
@@ -36,6 +38,7 @@ export function saveResult(game: string, day: string, result: DayResult, higherI
   const existingIsBetter =
     existing?.won && (higherIsBetter ? existing.score >= result.score : existing.score <= result.score);
   if (!existingIsBetter) write(`gd:${game}:${day}`, result);
+  if (result.won) submitScore(game, "daily", day, result.score, higherIsBetter);
   if (result.won && !existing?.won) {
     bumpStreak(game, day);
     track("daily_completed", { game, score: result.score });

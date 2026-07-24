@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faStar, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { isMuted } from "@/lib/sdk/sound";
 import Countdown from "./Countdown";
 
@@ -19,6 +21,7 @@ export default function Celebration({
   badges,
   primary,
   secondary,
+  pill,
   footnote,
   countdown,
 }: {
@@ -29,6 +32,7 @@ export default function Celebration({
   badges?: string[];
   primary: Action;
   secondary?: Action;
+  pill?: Action; // what the floating continue-pill does after ✕ (defaults to primary)
   footnote?: string;
   countdown?: boolean; // show the live "next challenge at midnight" ticker
 }) {
@@ -128,12 +132,13 @@ export default function Celebration({
 
   // dismissed: reveal the board, keep a floating continue pill so nobody gets stuck
   if (hidden) {
+    const pillAction = pill ?? primary;
     return (
       <button
-        onClick={primary.onClick}
+        onClick={pillAction.onClick}
         className="btn-ink fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-6 py-2.5 shadow-xl"
       >
-        {primary.label}
+        {pillAction.label}
       </button>
     );
   }
@@ -143,10 +148,10 @@ export default function Celebration({
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-20" />
       <div className="panel celebrate-panel text-center max-w-sm relative">
         <button className="panel-x" aria-label="Close" onClick={() => setHidden(true)}>
-          ✕
+          <FontAwesomeIcon icon={faXmark} width={12} height={12} />
         </button>
         <div className="ribbon">{title}</div>
-        {subtitle && <p className="text-stone-500 text-sm mt-3">{subtitle}</p>}
+        {subtitle && <p className="tx-muted text-sm mt-3">{subtitle}</p>}
         <div className="mt-4 flex justify-center gap-2">
           {[0, 1, 2].map((i) => (
             <span
@@ -154,13 +159,13 @@ export default function Celebration({
               className={`star-slot ${i < stars ? "star-earned" : ""}`}
               style={i < stars ? { animationDelay: `${0.15 + i * 0.22}s` } : undefined}
             >
-              ★
+              <FontAwesomeIcon icon={faStar} width={40} height={40} />
             </span>
           ))}
         </div>
         {score && (
           <p className="mt-2">
-            <span className="font-serif text-4xl font-bold text-stone-900 tabular-nums">
+            <span className="text-4xl font-extrabold tracking-tight tx-ink tabular-nums">
               {fmt(display)}
               {score.suffix || ""}
             </span>
@@ -186,9 +191,9 @@ export default function Celebration({
             </button>
           )}
         </div>
-        {footnote && <p className="text-xs text-stone-400 mt-4">{footnote}</p>}
+        {footnote && <p className="text-xs tx-soft mt-4">{footnote}</p>}
         {countdown && (
-          <p className="text-xs text-stone-400 mt-1">
+          <p className="text-xs tx-soft mt-1">
             <Countdown />
           </p>
         )}

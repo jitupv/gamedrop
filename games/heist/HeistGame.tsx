@@ -1,9 +1,14 @@
 "use client";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+
 import { useEffect, useRef, useState } from "react";
 import { Cell, HeistCfg, HeistLevel, LEVELS, caughtAt, endlessCfg, genLevel, genLevelFrom, guardAt } from "./engine";
-import { dayNumber, todayKey } from "@/lib/sdk/daily";
+import { challengeNumber, todayKey } from "@/lib/sdk/daily";
+import ModeSwitch from "@/components/ModeSwitch";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import { reportEndlessBest } from "@/lib/sdk/leaderboard";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
@@ -108,7 +113,12 @@ export default function HeistGame() {
     const lv = levelRef.current;
     const path = pathRef.current;
     setPathLen(path.length);
-    setCanGo(!!lv && path.length > 1 && path[path.length - 1].c === lv.exit.c && path[path.length - 1].r === lv.exit.r);
+    // the vault is locked: GO only unlocks when the route grabs EVERY gem and ends on the exit
+    const endsAtExit =
+      !!lv && path.length > 1 && path[path.length - 1].c === lv.exit.c && path[path.length - 1].r === lv.exit.r;
+    const allGems =
+      !!lv && lv.gems.every((gm) => path.some((p) => p.c === gm.c && p.r === gm.r));
+    setCanGo(endsAtExit && allGems);
   };
 
   const resetPath = () => {
@@ -134,7 +144,7 @@ export default function HeistGame() {
     if (!ctx) return;
 
     dayRef.current = todayKey();
-    setNum(dayNumber());
+    setNum(challengeNumber("heist"));
     setStreak(getStreak("heist", dayRef.current));
     setEndlessBest(readEndlessBest());
     startLevel(0);
@@ -202,9 +212,8 @@ export default function HeistGame() {
     let raf = 0;
 
     const finishLevel = (gems: number) => {
-      // stars: escape = 1, all gems = 2, first-plan clean job = 3
-      const stars =
-        1 + (gems >= cfgRef.current.gems ? 1 : 0) + (attemptsRef.current === 1 ? 1 : 0);
+      // every escape now carries all gems — stars rate how few plans it took
+      const stars = attemptsRef.current === 1 ? 3 : attemptsRef.current <= 3 ? 2 : 1;
       setLastStars(stars);
       setLastGems(gems);
 
@@ -214,6 +223,7 @@ export default function HeistGame() {
         if (clearedRef.current > readEndlessBest()) {
           try {
             window.localStorage.setItem("gd:heist:endless-best", String(clearedRef.current));
+            reportEndlessBest("heist", clearedRef.current);
           } catch {}
           setEndlessBest(clearedRef.current);
         }
@@ -478,7 +488,15 @@ export default function HeistGame() {
       ...lines,
       `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"} · the perfect crime?`,
     ], challengeUrl(totalAttempts));
-    const outcome = await shareResult(text);
+    const outcome = await shareResult(text, {
+      game: "HEIST",
+      num,
+      emoji: "💎",
+      accent: "#3fbf7f",
+      headline: `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"}`,
+      lines,
+      streak,
+    });
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);
   };
@@ -491,6 +509,7 @@ export default function HeistGame() {
 
   return (
     <div className="relative w-full h-full flex flex-col">
+      <ModeSwitch endless={mode === "endless"} onDaily={() => startLevel(0)} onEndless={startEndless} />
       <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Museum</span>
@@ -518,10 +537,6 @@ export default function HeistGame() {
               <span className="lab">Best run</span>
               <span className="val warn">{endlessBest}</span>
             </div>
-            <button type="button" className="stat stat-btn" onClick={() => startLevel(0)}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">∞</span>
-            </button>
           </>
         ) : (
           <>
@@ -529,10 +544,6 @@ export default function HeistGame() {
               <span className="lab">Streak</span>
               <span className="val">{streak}🔥</span>
             </div>
-            <button type="button" className="stat stat-btn" onClick={startEndless}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">Daily</span>
-            </button>
           </>
         )}
       </div>
@@ -550,8 +561,8 @@ export default function HeistGame() {
         </button>
       </div>
       <p className="hint">
-        you are 🥷 · drag your route to the EXIT · faint 👮 = where guards will be at your plan&apos;s last
-        step ·{" "}
+        you are 🥷 · grab <b>every</b> 🔶 then reach the EXIT — the vault stays locked otherwise ·
+        faint 👮 = where guards will be at your plan&apos;s last step ·{" "}
         {mode === "daily" ? (
           <button onClick={startEndless}>endless mode →</button>
         ) : (
@@ -573,27 +584,28 @@ export default function HeistGame() {
                 } catch {}
               }}
             >
-              ✕
+              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
             </button>
-            <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
-            <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
+            <h2 className="font-serif text-2xl font-bold tx-ink mb-4 text-center">How to play</h2>
+            <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
-                <span className="text-stone-900 font-semibold">1. You are the ninja 🥷 — plan the whole robbery first.</span>{" "}
+                <span className="tx-ink font-semibold">1. You are the ninja 🥷 — plan the whole robbery first.</span>{" "}
                 Drag (or tap cell by cell) from your 🥷 to the EXIT — through the gems 🔶 if you dare.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">2. Guards 👮 patrol the dotted loops</span> —
+                <span className="tx-ink font-semibold">2. Guards 👮 patrol the dotted loops</span> —
                 one step for every step you take. The{" "}
-                <span className="text-stone-900 font-semibold">dashed ghost</span> shows where each guard
+                <span className="tx-ink font-semibold">dashed ghost</span> shows where each guard
                 will be at your plan&apos;s final step. Tap your path&apos;s head to undo.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">3. Press GO and pray.</span> No control
+                <span className="tx-ink font-semibold">3. Press GO and pray.</span> No control
                 once it starts. Same cell as a guard = caught = replan.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">4. Three museums a day.</span> Fewest
-                plans, most gems = the perfect crime.
+                <span className="tx-ink font-semibold">4. The vault is locked.</span> Your route
+                must collect <b>every gem</b> before the exit opens — plan the full loop past the
+                patrols. Fewest plans = the perfect crime.
               </li>
             </ol>
             <button
@@ -649,9 +661,14 @@ export default function HeistGame() {
             `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"} total`,
             ...(prior?.won ? [`Today's best: ${prior.score} plans`] : []),
           ]}
-          primary={{ label: "Endless mode →", onClick: startEndless }}
-          secondary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
-          footnote="Endless museums keep growing — how deep can you go?"
+          primary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
+          secondary={{ label: "Keep going ∞", onClick: startEndless }}
+          pill={{ label: "Keep going ∞", onClick: startEndless }}
+          footnote={
+            endlessBest > 0
+              ? `Your endless best: ${endlessBest} museums — beat it?`
+              : "Endless museums keep growing — how deep can you go?"
+          }
           countdown
         />
       )}

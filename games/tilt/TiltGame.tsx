@@ -1,5 +1,8 @@
 "use client";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+
 import { useEffect, useRef, useState } from "react";
 import {
   Dir,
@@ -14,8 +17,10 @@ import {
   newLevel,
   previewMove,
 } from "./engine";
-import { dayNumber, todayKey } from "@/lib/sdk/daily";
+import { challengeNumber, todayKey } from "@/lib/sdk/daily";
+import ModeSwitch from "@/components/ModeSwitch";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import { reportEndlessBest } from "@/lib/sdk/leaderboard";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { isMuted } from "@/lib/sdk/sound";
 import { applyView } from "@/lib/sdk/viewport";
@@ -311,6 +316,7 @@ export default function TiltGame() {
         if (scoreRef.current > readTiltEndlessBest()) {
           try {
             window.localStorage.setItem("gd:tilt:endless-best", String(scoreRef.current));
+            reportEndlessBest("tilt", scoreRef.current);
           } catch {}
         }
         setEndlessBest(Math.max(readTiltEndlessBest(), scoreRef.current));
@@ -349,7 +355,7 @@ export default function TiltGame() {
     if (!ctx) return;
 
     dayRef.current = todayKey();
-    setNum(dayNumber());
+    setNum(challengeNumber("tilt"));
     setStreak(getStreak("tilt", dayRef.current));
     startLevel(0);
 
@@ -616,11 +622,20 @@ export default function TiltGame() {
   const share = async () => {
     const starRow = (s: number) =>
       s >= 3 ? "🟩🟩🟩" : s === 2 ? "🟨🟨⬜" : s === 1 ? "🟧⬜⬜" : "⬜⬜⬜";
+    const grid = starsRef.current.map(starRow);
     const text = buildShare("TILT", num, [
-      ...starsRef.current.map(starRow),
+      ...grid,
       `🍬 ${dayTotalRef.current.toLocaleString()} pts`,
     ], challengeUrl(dayTotalRef.current));
-    const outcome = await shareResult(text);
+    const outcome = await shareResult(text, {
+      game: "TILT",
+      num,
+      emoji: "🍬",
+      accent: "#ff6f61",
+      headline: `${dayTotalRef.current.toLocaleString()} pts`,
+      lines: grid,
+      streak,
+    });
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);
   };
@@ -635,6 +650,7 @@ export default function TiltGame() {
 
   return (
     <div className="relative w-full h-full flex flex-col">
+      <ModeSwitch endless={mode === "endless"} onDaily={restartDay} onEndless={startEndless} />
       <div className="stat-bar shrink-0">
         {mode === "daily" ? (
           <>
@@ -650,24 +666,16 @@ export default function TiltGame() {
               <span className="lab">Score</span>
               <span className="val">
                 {score.toLocaleString()}
-                <span className="text-stone-400 font-medium"> / {cfg.target.toLocaleString()}</span>
+                <span className="tx-soft font-medium"> / {cfg.target.toLocaleString()}</span>
               </span>
             </div>
             <div className="stat">
               <span className="lab">Streak</span>
               <span className="val">{streak}🔥</span>
             </div>
-            <button type="button" className="stat stat-btn" onClick={startEndless}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">Daily</span>
-            </button>
           </>
         ) : (
           <>
-            <button type="button" className="stat stat-btn" onClick={restartDay}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">∞</span>
-            </button>
             <div className="stat">
               <span className="lab">Score</span>
               <span className="val">{score.toLocaleString()}</span>
@@ -686,7 +694,7 @@ export default function TiltGame() {
         )}
       </div>
       {mode === "daily" && (
-        <div className="h-1 bg-stone-300/50 overflow-hidden shrink-0">
+        <div className="h-1 bg-line overflow-hidden shrink-0">
           <div
             className="h-full rounded-full bg-amber-700 transition-all duration-300"
             style={{ width: `${Math.min(100, (score / cfg.target) * 100)}%` }}
@@ -721,28 +729,28 @@ export default function TiltGame() {
                 } catch {}
               }}
             >
-              ✕
+              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
             </button>
-            <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">
+            <h2 className="font-serif text-2xl font-bold tx-ink mb-4 text-center">
               How to play
             </h2>
-            <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
+            <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
-                <span className="text-stone-900 font-semibold">1. Swipe any direction.</span> The{" "}
+                <span className="tx-ink font-semibold">1. Swipe any direction.</span> The{" "}
                 <em>whole board</em> slides that way — every tile packs toward that edge.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">2. Hold before releasing.</span>{" "}
+                <span className="tx-ink font-semibold">2. Hold before releasing.</span>{" "}
                 Dashed boxes show where tiles will land, and tiles that{" "}
-                <span className="text-stone-900 font-semibold">glow</span> are about to pop.
+                <span className="tx-ink font-semibold">glow</span> are about to pop.
                 Release to commit, or drag another way to compare.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">3. Line up 3+ of a color</span> (row
+                <span className="tx-ink font-semibold">3. Line up 3+ of a color</span> (row
                 or column) and they pop. Pops make tiles slide again — chains multiply your points.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">4. Hit the target</span> before your
+                <span className="tx-ink font-semibold">4. Hit the target</span> before your
                 moves run out. Three levels a day, same boards for everyone.
               </li>
             </ol>
@@ -789,12 +797,13 @@ export default function TiltGame() {
           stars={Math.round(levelStars.reduce((a, b) => a + (b || 0), 0) / 3)}
           score={{ label: "total points", value: dayTotal }}
           badges={levelStars.map((s, i) => `L${i + 1}: ${"★".repeat(s)}`)}
-          primary={{ label: "Endless mode →", onClick: startEndless }}
-          secondary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
+          primary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
+          secondary={{ label: "Keep going ∞", onClick: startEndless }}
+          pill={{ label: "Keep going ∞", onClick: startEndless }}
           footnote={
-            prior?.won
-              ? `Today's best: ${prior.score.toLocaleString()} · endless has no bottom`
-              : "New boards at midnight · endless has no bottom."
+            endlessBest > 0
+              ? `Your endless best: ${endlessBest.toLocaleString()} — beat it?`
+              : "Endless mode has no bottom — how far can you go?"
           }
           countdown
         />
@@ -833,10 +842,10 @@ function Overlay({
     <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
       <div className="panel text-center max-w-sm">
         <div className="text-4xl mb-2">{emoji}</div>
-        <h2 className="font-serif text-2xl font-bold text-stone-900 mb-1">{title}</h2>
-        <p className="text-stone-600 mb-5">{sub}</p>
+        <h2 className="font-serif text-2xl font-bold tx-ink mb-1">{title}</h2>
+        <p className="tx-muted mb-5">{sub}</p>
         {children}
-        <p className="text-xs text-stone-400 mt-4">Same boards for everyone today. New boards at midnight.</p>
+        <p className="text-xs tx-soft mt-4">Same boards for everyone today. New boards at midnight.</p>
       </div>
     </div>
   );

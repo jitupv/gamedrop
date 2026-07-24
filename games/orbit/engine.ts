@@ -12,10 +12,10 @@ const MASS_FACTOR = 1.6;
 const SOFTEN = 900;
 const SUBSTEPS = 3;
 
-const HOLE_PLANETS = [3, 4, 5]; // escalating difficulty across the daily course
-const MAX_WINS_PER_HOLE = [60, 40, 28]; // fewer viable shots = harder hole
+const HOLE_PLANETS = [4, 5, 6]; // escalating difficulty across the daily course
+const MAX_WINS_PER_HOLE = [36, 22, 12]; // fewer viable shots = harder hole
 const DIRECT_CONE_DEG = 22; // wins aimed within this cone of the beacon disqualify a level
-const GEN_ATTEMPTS = 14;
+const GEN_ATTEMPTS = 30;
 
 export interface Vec {
   x: number;

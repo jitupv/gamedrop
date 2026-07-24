@@ -4,7 +4,7 @@ export const metadata = { title: "Terms — GAMEDROP" };
 
 export default function Terms() {
   return (
-    <SimplePage title="Terms of Use">
+    <SimplePage title="Terms of Use" lede="Play fair, have fun, share your results anywhere.">
       <p>Last updated: July 2026</p>
       <h2>The service</h2>
       <p>

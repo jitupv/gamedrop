@@ -4,7 +4,7 @@ export const metadata = { title: "Privacy — GAMEDROP" };
 
 export default function Privacy() {
   return (
-    <SimplePage title="Privacy Policy">
+    <SimplePage title="Privacy Policy" lede="Your progress stays on your device. Here's exactly what that means.">
       <p>Last updated: July 2026</p>
       <h2>What we collect</h2>
       <p>

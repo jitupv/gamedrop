@@ -15,8 +15,10 @@ import {
   previewPath,
   simStep,
 } from "./engine";
-import { dayNumber, todayKey } from "@/lib/sdk/daily";
+import { challengeNumber, todayKey } from "@/lib/sdk/daily";
+import ModeSwitch from "@/components/ModeSwitch";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import { reportEndlessBest } from "@/lib/sdk/leaderboard";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
@@ -26,6 +28,9 @@ type Status = "idle" | "aiming" | "flying" | "resetting" | "holeDone" | "courseD
 type Mode = "daily" | "endless";
 
 const START_FUEL = 8;
+// daily: hard fuel per hole — run dry and the hole is picked up as a bogey (+2)
+const DAILY_FUEL = [8, 9, 10];
+const BOGEY_PENALTY = 2;
 
 function readOrbitEndlessBest(): number {
   try {
@@ -146,7 +151,7 @@ export default function OrbitGame() {
 
     const day = todayKey();
     dayRef.current = day;
-    setNum(dayNumber());
+    setNum(challengeNumber("orbit"));
     setStreak(getStreak("orbit", day));
 
     // course generation runs the solver — defer a tick so the shell paints first
@@ -204,6 +209,13 @@ export default function OrbitGame() {
         }
         fuelRef.current -= 1;
         setFuel(fuelRef.current);
+      } else if (holeLaunchesRef.current >= DAILY_FUEL[holeIdxRef.current]) {
+        // tank empty — golf pickup rule: bogey the hole, penalty on the card
+        holeLaunchesRef.current += BOGEY_PENALTY;
+        setHoleLaunches(holeLaunchesRef.current);
+        chirp(320, 90, 0.4, "sawtooth", 0.07);
+        finishHole();
+        return;
       }
       const hole = holeRef.current;
       probeRef.current = { x: hole.start.x, y: hole.start.y, vx, vy };
@@ -234,6 +246,7 @@ export default function OrbitGame() {
         if (clearedRef.current > readOrbitEndlessBest()) {
           try {
             window.localStorage.setItem("gd:orbit:endless-best", String(clearedRef.current));
+            reportEndlessBest("orbit", clearedRef.current);
           } catch {}
           setEndlessBest(clearedRef.current);
         }
@@ -309,6 +322,7 @@ export default function OrbitGame() {
               if (clearedRef.current > readOrbitEndlessBest()) {
                 try {
                   window.localStorage.setItem("gd:orbit:endless-best", String(clearedRef.current));
+                  reportEndlessBest("orbit", clearedRef.current);
                 } catch {}
                 setEndlessBest(clearedRef.current);
               }
@@ -493,7 +507,15 @@ export default function OrbitGame() {
       return `${rockets}${starsWon[i] ? "⭐" : ""}🎯`;
     });
     const text = buildShare("ORBIT", num, [...holeLines, `⛳ ${totalLaunches} launches`], challengeUrl(totalLaunches));
-    const outcome = await shareResult(text);
+    const outcome = await shareResult(text, {
+      game: "ORBIT",
+      num,
+      emoji: "🪐",
+      accent: "#9d8cff",
+      headline: `${totalLaunches} launches`,
+      lines: holeLines,
+      streak,
+    });
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);
   };
@@ -508,6 +530,7 @@ export default function OrbitGame() {
 
   return (
     <div className="relative w-full h-full flex flex-col">
+      <ModeSwitch endless={mode === "endless"} onDaily={backToDaily} onEndless={startEndless} />
       <div className="stat-bar shrink-0">
         {mode === "daily" ? (
           <>
@@ -516,8 +539,10 @@ export default function OrbitGame() {
               <span className="val">{holeIdx + 1}/{HOLES}</span>
             </div>
             <div className="stat">
-              <span className="lab">Shots</span>
-              <span className="val">{holeLaunches}</span>
+              <span className="lab">Fuel</span>
+              <span className={`val${DAILY_FUEL[holeIdx] - holeLaunches <= 2 ? " warn" : ""}`}>
+                {Math.max(0, DAILY_FUEL[holeIdx] - holeLaunches)} ⛽
+              </span>
             </div>
             <div className="stat">
               <span className="lab">Total</span>
@@ -535,17 +560,9 @@ export default function OrbitGame() {
               <span className="lab">Streak</span>
               <span className="val">{streak}🔥</span>
             </div>
-            <button type="button" className="stat stat-btn" onClick={startEndless}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">Daily</span>
-            </button>
           </>
         ) : (
           <>
-            <button type="button" className="stat stat-btn" onClick={backToDaily}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">∞</span>
-            </button>
             <div className="stat">
               <span className="lab">Hole</span>
               <span className="val">#{holeIdx + 1}</span>
@@ -569,7 +586,8 @@ export default function OrbitGame() {
         <canvas ref={canvasRef} className="board cursor-crosshair" />
       </div>
       <p className="hint shrink-0">
-        drag anywhere · release to launch · grab the ⭐ on the way ·{" "}
+        drag anywhere · release to launch · grab the ⭐ on the way · limited fuel per hole — run dry
+        and it&apos;s a bogey (+{BOGEY_PENALTY}) ·{" "}
         {mode === "daily" ? (
           <button onClick={startEndless}>endless mode →</button>
         ) : (
@@ -633,9 +651,14 @@ export default function OrbitGame() {
           stars={starCount}
           score={{ label: "total launches", value: totalLaunches }}
           badges={[`${starCount}/3 bonus stars`, ...(totalLaunches <= 6 ? ["Ace pilot 🛰️"] : [])]}
-          primary={{ label: "Endless mode →", onClick: startEndless }}
-          secondary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
-          footnote="New course at midnight · endless mode has no bottom."
+          primary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
+          secondary={{ label: "Keep going ∞", onClick: startEndless }}
+          pill={{ label: "Keep going ∞", onClick: startEndless }}
+          footnote={
+            endlessBest > 0
+              ? `Your endless best: ${endlessBest} holes — beat it?`
+              : "Endless mode has no bottom — how far can you go?"
+          }
           countdown
         />
       )}

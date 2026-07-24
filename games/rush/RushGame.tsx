@@ -1,5 +1,8 @@
 "use client";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+
 import { useEffect, useRef, useState } from "react";
 import {
   ACCEL,
@@ -22,7 +25,7 @@ import {
   rectsOverlap,
   spawnInterval,
 } from "./engine";
-import { dayNumber, todayKey } from "@/lib/sdk/daily";
+import { challengeNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
@@ -92,7 +95,7 @@ export default function RushGame() {
     if (!ctx) return;
 
     dayRef.current = todayKey();
-    setNum(dayNumber());
+    setNum(challengeNumber("rush"));
     setStreak(getStreak("rush", dayRef.current));
     const prior = loadResult("rush", dayRef.current);
     if (prior) {
@@ -290,7 +293,15 @@ export default function RushGame() {
       `🚦${lane}`,
       `${best} cars${best >= DAILY_GOAL ? " · goal cleared ✅" : ` · goal ${DAILY_GOAL}`}`,
     ], challengeUrl(best));
-    const outcome = await shareResult(text);
+    const outcome = await shareResult(text, {
+      game: "RUSH",
+      num,
+      emoji: "🚦",
+      accent: "#ffa23e",
+      headline: `${best} cars`,
+      lines: [`🚦${lane}`, best >= DAILY_GOAL ? "Daily goal cleared ✅" : `Goal: ${DAILY_GOAL} cars`],
+      streak,
+    });
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);
   };
@@ -338,24 +349,24 @@ export default function RushGame() {
                 } catch {}
               }}
             >
-              ✕
+              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
             </button>
-            <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
-            <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
+            <h2 className="font-serif text-2xl font-bold tx-ink mb-4 text-center">How to play</h2>
+            <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
-                <span className="text-stone-900 font-semibold">1. You are the traffic light.</span> One
+                <span className="tx-ink font-semibold">1. You are the traffic light.</span> One
                 tap switches which road flows — green lines go, red lines wait.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">2. Cars keep coming, faster and faster.</span>{" "}
+                <span className="tx-ink font-semibold">2. Cars keep coming, faster and faster.</span>{" "}
                 Everyone gets the same traffic today.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">3. One touch = game over.</span> A car
+                <span className="tx-ink font-semibold">3. One touch = game over.</span> A car
                 already in the crossing can&apos;t stop — time your switches.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">4. Pass {DAILY_GOAL} cars</span> to clear
+                <span className="tx-ink font-semibold">4. Pass {DAILY_GOAL} cars</span> to clear
                 the daily goal. Then chase the high score.
               </li>
             </ol>
@@ -378,12 +389,12 @@ export default function RushGame() {
         <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="panel text-center max-w-sm">
             <div className="text-4xl mb-2">💥</div>
-            <h2 className="font-serif text-2xl font-bold text-stone-900 mb-1">Pile-up!</h2>
-            <p className="text-stone-600 mb-1">
-              RUSH #{num}: <span className="text-stone-900 font-bold">{score} cars</span>
+            <h2 className="font-serif text-2xl font-bold tx-ink mb-1">Pile-up!</h2>
+            <p className="tx-muted mb-1">
+              RUSH #{num}: <span className="tx-ink font-bold">{score} cars</span>
               {score >= DAILY_GOAL ? " · daily goal cleared ✅" : ` · goal is ${DAILY_GOAL}`}
             </p>
-            <p className="text-xs text-stone-400 mb-4">Best today: {best}</p>
+            <p className="text-xs tx-soft mb-4">Best today: {best}</p>
             <div className="flex gap-3 justify-center">
               <button onClick={share} className="btn-ink px-5 py-2.5">
                 {copied ? "Shared ✓" : "Share result"}
@@ -392,7 +403,7 @@ export default function RushGame() {
                 Again
               </button>
             </div>
-            <p className="text-xs text-stone-400 mt-4">
+            <p className="text-xs tx-soft mt-4">
               Same traffic for everyone · <Countdown prefix="new rush in" />
             </p>
           </div>

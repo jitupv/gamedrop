@@ -1,10 +1,15 @@
 "use client";
 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+
 import { useEffect, useRef, useState } from "react";
 import { LEVELS, SonarLevel, endlessMazeSize, genMaze, genMazeCfg, lanternBudget } from "./engine";
 import Celebration from "@/components/Celebration";
-import { dayNumber, todayKey } from "@/lib/sdk/daily";
+import { challengeNumber, todayKey } from "@/lib/sdk/daily";
+import ModeSwitch from "@/components/ModeSwitch";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import { reportEndlessBest } from "@/lib/sdk/leaderboard";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
@@ -12,8 +17,8 @@ import Countdown from "@/components/Countdown";
 
 const CW = 900;
 const CH = 600;
-const PING_MAX_R = 4.6; // in cells
-const PING_LIFE = 1.7; // seconds
+const PING_MAX_R = 4.0; // in cells
+const PING_LIFE = 1.25; // seconds
 const SPEED_CELLS = 5.2; // cells per second
 
 type Phase = "playing" | "levelDone" | "dayDone" | "runOver";
@@ -141,7 +146,7 @@ export default function SonarGame() {
     if (!ctx) return;
 
     dayRef.current = todayKey();
-    setNum(dayNumber());
+    setNum(challengeNumber("sonar"));
     setStreak(getStreak("sonar", dayRef.current));
     startLevel(0);
     if (!window.localStorage.getItem("gd:sonar:help")) setShowHelp(true);
@@ -273,6 +278,7 @@ export default function SonarGame() {
             if (clearedRef.current > readSonarEndlessBest()) {
               try {
                 window.localStorage.setItem("gd:sonar:endless-best", String(clearedRef.current));
+                reportEndlessBest("sonar", clearedRef.current);
               } catch {}
               setEndlessBest(clearedRef.current);
             }
@@ -405,7 +411,15 @@ export default function SonarGame() {
     // one line per maze: pings spent in the dark, time to daylight
     const lines = levelStats.map((s) => `🔦×${s?.pings ?? 0} 🌑 ${fmtTime(s?.time ?? 0)}`);
     const text = buildShare("SONAR", num, [...lines, `${totalPings} pings total · out alive`], challengeUrl(totalPings));
-    const outcome = await shareResult(text);
+    const outcome = await shareResult(text, {
+      game: "SONAR",
+      num,
+      emoji: "🔦",
+      accent: "#3fd6c0",
+      headline: `${totalPings} pings`,
+      lines,
+      streak,
+    });
     setCopied(outcome !== "failed");
     window.setTimeout(() => setCopied(false), 2000);
   };
@@ -418,6 +432,7 @@ export default function SonarGame() {
 
   return (
     <div className="relative w-full h-full flex flex-col">
+      <ModeSwitch endless={mode === "endless"} onDaily={restartDay} onEndless={startEndless} />
       <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Maze</span>
@@ -441,10 +456,6 @@ export default function SonarGame() {
               <span className="lab">Best</span>
               <span className="val warn">{endlessBest}</span>
             </div>
-            <button type="button" className="stat stat-btn" onClick={restartDay}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">∞</span>
-            </button>
           </>
         ) : (
           <>
@@ -456,10 +467,6 @@ export default function SonarGame() {
               <span className="lab">Streak</span>
               <span className="val">{streak}🔥</span>
             </div>
-            <button type="button" className="stat stat-btn" onClick={startEndless}>
-              <span className="lab">Mode ⇄</span>
-              <span className="val">Daily</span>
-            </button>
           </>
         )}
       </div>
@@ -494,24 +501,24 @@ export default function SonarGame() {
                 } catch {}
               }}
             >
-              ✕
+              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
             </button>
-            <h2 className="font-serif text-2xl font-bold text-stone-900 mb-4 text-center">How to play</h2>
-            <ol className="space-y-3 text-stone-600 text-sm leading-relaxed">
+            <h2 className="font-serif text-2xl font-bold tx-ink mb-4 text-center">How to play</h2>
+            <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
-                <span className="text-stone-900 font-semibold">1. You&apos;re in a pitch-black maze.</span>{" "}
+                <span className="tx-ink font-semibold">1. You&apos;re in a pitch-black maze.</span>{" "}
                 Only the golden exit glows in the distance.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">2. Hold &amp; drag to move</span> toward
+                <span className="tx-ink font-semibold">2. Hold &amp; drag to move</span> toward
                 your finger (or use WASD / arrow keys).
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">3. Ping to see.</span> The wave reveals
+                <span className="tx-ink font-semibold">3. Ping to see.</span> The wave reveals
                 nearby walls, then fades. Memorize fast — every ping counts against you.
               </li>
               <li>
-                <span className="text-stone-900 font-semibold">4. Three mazes a day,</span> each bigger.
+                <span className="tx-ink font-semibold">4. Three mazes a day,</span> each bigger.
                 Fewest total pings wins the bragging rights.
               </li>
             </ol>
@@ -534,14 +541,14 @@ export default function SonarGame() {
         <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="panel text-center max-w-sm">
             <div className="text-4xl mb-2">🔦</div>
-            <h2 className="font-serif text-2xl font-bold text-stone-900 mb-1">Maze {levelIdx + 1} escaped</h2>
-            <p className="text-stone-600 mb-5">
+            <h2 className="font-serif text-2xl font-bold tx-ink mb-1">Maze {levelIdx + 1} escaped</h2>
+            <p className="tx-muted mb-5">
               {levelStats[levelIdx]?.pings} pings · {fmtTime(levelStats[levelIdx]?.time || 0)}
             </p>
             <button onClick={() => startLevel(levelIdx + 1)} className="btn-ink px-6 py-2.5">
               Maze {levelIdx + 2} — deeper &amp; darker →
             </button>
-            <p className="text-xs text-stone-400 mt-4">Same mazes for everyone today.</p>
+            <p className="text-xs tx-soft mt-4">Same mazes for everyone today.</p>
           </div>
         </div>
       )}
@@ -577,23 +584,31 @@ export default function SonarGame() {
         <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="panel text-center max-w-sm">
             <div className="text-4xl mb-2">🌅</div>
-            <h2 className="font-serif text-2xl font-bold text-stone-900 mb-1">Out of the dark</h2>
-            <p className="text-stone-600 mb-1">
-              SONAR #{num}: <span className="text-stone-900 font-bold">{totalPings} pings</span> ·{" "}
+            <h2 className="font-serif text-2xl font-bold tx-ink mb-1">Out of the dark</h2>
+            <p className="tx-muted mb-1">
+              SONAR #{num}: <span className="tx-ink font-bold">{totalPings} pings</span> ·{" "}
               {fmtTime(totalTime)}
             </p>
             <div className="flex gap-3 justify-center mt-4">
               <button onClick={share} className="btn-ink px-5 py-2.5">
                 {copied ? "Shared ✓" : "Share result"}
               </button>
-              <button onClick={restartDay} className="btn-line px-5 py-2.5">
-                Beat it
+              <button onClick={startEndless} className="btn-line px-5 py-2.5">
+                Keep going ∞
               </button>
             </div>
+            <p className="text-xs tx-soft mt-3">
+              {endlessBest > 0
+                ? `Your endless best: ${endlessBest} mazes — beat it?`
+                : "Endless mazes keep growing — how deep can you go?"}
+            </p>
+            <button onClick={restartDay} className="text-xs tx-muted underline underline-offset-2 mt-2">
+              or replay today&apos;s mazes
+            </button>
             {prior?.won && (
-              <p className="text-xs text-stone-400 mt-3">Today&apos;s best: {prior.score} pings</p>
+              <p className="text-xs tx-soft mt-2">Today&apos;s best: {prior.score} pings</p>
             )}
-            <p className="text-xs text-stone-400 mt-2">
+            <p className="text-xs tx-soft mt-2">
               <Countdown prefix="New mazes in" />
             </p>
           </div>
