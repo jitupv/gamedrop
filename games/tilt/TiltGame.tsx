@@ -525,13 +525,23 @@ export default function TiltGame() {
       const leanX = pv ? pv.dir.dx * 7 : 0;
       const leanY = pv ? pv.dir.dy * 7 : 0;
       if (pv) {
-        ctx.strokeStyle = "rgba(41,36,32,0.35)";
-        ctx.lineWidth = 2;
+        // color-tinted ghost at every destination - the future board, readable at a glance
         ctx.setLineDash([6, 6]);
-        for (const [, cell] of pv.dest) {
+        ctx.lineWidth = 2;
+        for (const [id, cell] of pv.dest) {
+          const gtv = tilesRef.current.get(id);
+          const col = gtv ? COLORS[gtv.color % COLORS.length] : "rgba(41,36,32,0.5)";
+          ctx.globalAlpha = 0.26;
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.roundRect(cellX(cell.c) + 4, cellY(cell.r) + 4, TILE - 8, TILE - 8, 12);
+          ctx.fill();
+          ctx.globalAlpha = 0.6;
+          ctx.strokeStyle = col;
           ctx.beginPath();
           ctx.roundRect(cellX(cell.c) + 4, cellY(cell.r) + 4, TILE - 8, TILE - 8, 12);
           ctx.stroke();
+          ctx.globalAlpha = 1;
         }
         ctx.setLineDash([]);
       }
@@ -542,8 +552,9 @@ export default function TiltGame() {
         if (s <= 0) continue;
         const willPop = pv?.popIds.has(tv.id) ?? false;
         if (willPop) {
-          ctx.shadowColor = "#292420";
-          ctx.shadowBlur = 18;
+          // bright halo: these are the tiles that will pop if you release now
+          ctx.shadowColor = "#ffffff";
+          ctx.shadowBlur = 22;
         }
         const cx = tv.x + TILE / 2 + leanX;
         const cy = tv.y + TILE / 2 + leanY;
@@ -706,8 +717,8 @@ export default function TiltGame() {
         <canvas ref={canvasRef} className="board" />
       </div>
       <p className="hint shrink-0">
-        hold &amp; drag to preview - release to commit
-        <span className="hidden sm:inline"> · arrow keys work too</span> ·{" "}
+        drag slowly &amp; <b>hold</b>: ghosts show where every tile lands, glowing tiles will pop ·
+        release to commit<span className="hidden sm:inline"> · arrow keys work too</span> ·{" "}
         {mode === "daily" ? (
           <button onClick={startEndless}>endless mode →</button>
         ) : (

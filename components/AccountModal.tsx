@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCircleCheck, faEnvelope, faUserAstronaut, faXmark } from "@fortawesome/free-solid-svg-icons";
+import {
+  faCircleCheck,
+  faEnvelope,
+  faSpinner,
+  faUserAstronaut,
+  faXmark,
+} from "@fortawesome/free-solid-svg-icons";
 import {
   AccountInfo,
   attachEmail,
@@ -23,7 +29,8 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
   const [nameMsg, setNameMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [email, setEmail] = useState("");
   const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
+  // which request is in flight - its button shows a spinner so clicks feel acknowledged
+  const [busy, setBusy] = useState<null | "name" | "email" | "signout">(null);
 
   const online = leaderboardEnabled();
 
@@ -33,11 +40,11 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
   }, []);
 
   const saveName = async () => {
-    setBusy(true);
+    setBusy("name");
     const r = await renameHandle(name);
     setNameMsg({ ok: r.ok, text: r.message });
     if (r.ok) setName(name.trim());
-    setBusy(false);
+    setBusy(null);
   };
 
   const sendLink = async () => {
@@ -45,17 +52,17 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
       setEmailMsg({ ok: false, text: "That doesn't look like an email address." });
       return;
     }
-    setBusy(true);
+    setBusy("email");
     const r = await attachEmail(email.trim());
     setEmailMsg({ ok: r.ok, text: r.message });
-    setBusy(false);
+    setBusy(null);
   };
 
   const signOut = async () => {
-    setBusy(true);
+    setBusy("signout");
     await signOutAccount();
     setAccount(await getAccount());
-    setBusy(false);
+    setBusy(null);
   };
 
   return createPortal(
@@ -84,8 +91,8 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
             }}
             aria-label="Display name"
           />
-          <button className="btn-ink px-4 py-2 text-sm" onClick={saveName} disabled={busy}>
-            Save
+          <button className="btn-ink px-4 py-2 text-sm" onClick={saveName} disabled={!!busy}>
+            {busy === "name" ? <FontAwesomeIcon icon={faSpinner} spin width={14} height={14} /> : "Save"}
           </button>
         </div>
         {nameMsg && (
@@ -103,8 +110,12 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
               <p className="text-xs tx-muted mt-1 mb-3">
                 Your name and scores follow this email on any device.
               </p>
-              <button className="btn-line px-4 py-2 text-sm" onClick={signOut} disabled={busy}>
-                Sign out on this device
+              <button className="btn-line px-4 py-2 text-sm" onClick={signOut} disabled={!!busy}>
+                {busy === "signout" ? (
+                  <FontAwesomeIcon icon={faSpinner} spin width={14} height={14} />
+                ) : (
+                  "Sign out on this device"
+                )}
               </button>
             </>
           ) : (
@@ -129,8 +140,14 @@ export default function AccountModal({ onClose }: { onClose: () => void }) {
                       }}
                       aria-label="Email address"
                     />
-                    <button className="btn-ink px-4 py-2 text-sm whitespace-nowrap" onClick={sendLink} disabled={busy}>
-                      <FontAwesomeIcon icon={faEnvelope} width={12} height={12} /> Link
+                    <button className="btn-ink px-4 py-2 text-sm whitespace-nowrap" onClick={sendLink} disabled={!!busy}>
+                      {busy === "email" ? (
+                        <FontAwesomeIcon icon={faSpinner} spin width={14} height={14} />
+                      ) : (
+                        <>
+                          <FontAwesomeIcon icon={faEnvelope} width={12} height={12} /> Link
+                        </>
+                      )}
                     </button>
                   </div>
                   {emailMsg && (

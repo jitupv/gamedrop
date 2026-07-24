@@ -2,8 +2,10 @@
 // Pure logic - no DOM. The component replays the emitted steps as animations.
 import { hashSeed, mulberry32 } from "@/lib/sdk/rng";
 
-export const SIZE = 7;
-export const SPAWN_PER_MOVE = 3;
+// 6×6 with ~20 tiles: small enough that a human can actually read where a
+// slide will settle - predictability is the skill, chaos was the old bug
+export const SIZE = 6;
+export const SPAWN_PER_MOVE = 2;
 
 export interface Tile {
   id: number;
@@ -28,9 +30,9 @@ export interface LevelConfig {
 }
 
 export const LEVELS: LevelConfig[] = [
-  { colors: 4, target: 1800, moves: 12 },
-  { colors: 5, target: 2600, moves: 12 },
-  { colors: 5, target: 4000, moves: 11 },
+  { colors: 4, target: 1000, moves: 14 },
+  { colors: 4, target: 1600, moves: 13 },
+  { colors: 5, target: 2400, moves: 12 },
 ];
 
 export interface TiltState {
@@ -40,7 +42,7 @@ export interface TiltState {
   colors: number;
 }
 
-const EMPTY_START = 14; // a full board can't slide - always start with breathing room
+const EMPTY_START = 16; // a full board can't slide - always start with breathing room
 
 export function newLevel(dayKey: string, levelIdx: number): TiltState {
   return newBoard(`tilt:${dayKey}:L${levelIdx}`, LEVELS[levelIdx].colors);

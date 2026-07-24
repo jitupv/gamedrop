@@ -69,6 +69,7 @@ export default function HomeBoard({ game, accent }: { game: GameMeta; accent: st
               {podium.map((r, i) =>
                 r ? (
                   <div key={podiumRank[i]} className={`hb-step ${podiumClass[i]}`}>
+                    <span className="rank">{["2nd", "1st", "3rd"][i]}</span>
                     <span className="medal">
                       <FontAwesomeIcon icon={podiumRank[i] === 1 ? faCrown : faTrophy} width={14} height={14} />
                     </span>
@@ -82,6 +83,7 @@ export default function HomeBoard({ game, accent }: { game: GameMeta; accent: st
                   </div>
                 ) : (
                   <div key={podiumRank[i]} className={`hb-step empty ${podiumClass[i]}`}>
+                    <span className="rank">{["2nd", "1st", "3rd"][i]}</span>
                     <span className="medal">
                       <FontAwesomeIcon icon={faTrophy} width={14} height={14} />
                     </span>
