@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import ThemeToggle from "./ThemeToggle";
 
-// shared shell for text pages (about / privacy / terms) — matches the homepage chrome
+// shared shell for text pages (about / privacy / terms) - matches the homepage chrome
 export default function SimplePage({
   title,
   lede,

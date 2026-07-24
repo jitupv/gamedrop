@@ -1,5 +1,5 @@
 // TILT core: swipe the whole board, tiles slide, 3+ in a line pop, cascades chain.
-// Pure logic — no DOM. The component replays the emitted steps as animations.
+// Pure logic - no DOM. The component replays the emitted steps as animations.
 import { hashSeed, mulberry32 } from "@/lib/sdk/rng";
 
 export const SIZE = 7;
@@ -40,7 +40,7 @@ export interface TiltState {
   colors: number;
 }
 
-const EMPTY_START = 14; // a full board can't slide — always start with breathing room
+const EMPTY_START = 14; // a full board can't slide - always start with breathing room
 
 export function newLevel(dayKey: string, levelIdx: number): TiltState {
   return newBoard(`tilt:${dayKey}:L${levelIdx}`, LEVELS[levelIdx].colors);
@@ -224,7 +224,7 @@ export function applyMove(state: TiltState, dir: Dir): MoveResult {
   return { steps, points, changed: true, maxChain: chain };
 }
 
-// What WOULD happen on this swipe — where tiles land and which pop — without
+// What WOULD happen on this swipe - where tiles land and which pop - without
 // touching real state. Powers the drag preview so moves are readable before commit.
 export function previewMove(
   state: TiltState,

@@ -1,4 +1,4 @@
-// Spoiler-free share artifacts — the free growth channel.
+// Spoiler-free share artifacts - the free growth channel.
 // Text grids (the Wordle pattern) + a rendered stat-card image for the share sheet.
 import { track } from "./analytics";
 
@@ -19,7 +19,7 @@ export function buildShareText(game: string, num: number, detail: string): strin
 
 export type ShareOutcome = "shared" | "copied" | "failed";
 
-// everything the stat-card image needs — each game passes its own vibe
+// everything the stat-card image needs - each game passes its own vibe
 export interface ShareCard {
   game: string; // "SONAR"
   num: number; // challenge number
@@ -141,7 +141,7 @@ export async function shareResult(text: string, card?: ShareCard): Promise<Share
           await navigator.share({ files: [file], text });
           return "shared";
         } catch {
-          // user closed the sheet — fall through
+          // user closed the sheet - fall through
         }
       }
       // 2) clipboard image (+ text when the browser allows multi-type)
@@ -155,7 +155,7 @@ export async function shareResult(text: string, card?: ShareCard): Promise<Share
         }
         return "copied";
       } catch {
-        // clipboard image not allowed — fall through to text
+        // clipboard image not allowed - fall through to text
       }
     }
   }
@@ -165,7 +165,7 @@ export async function shareResult(text: string, card?: ShareCard): Promise<Share
       await navigator.share({ text });
       return "shared";
     } catch {
-      // user closed the sheet — fall through to clipboard
+      // user closed the sheet - fall through to clipboard
     }
   }
   try {

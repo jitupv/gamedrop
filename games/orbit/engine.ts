@@ -1,5 +1,5 @@
 // ORBIT core: deterministic course generation + gravity simulation.
-// v2: every hole is validated by an internal solver — a level is only accepted
+// v2: every hole is validated by an internal solver - a level is only accepted
 // if it is solvable AND no direct shot at the beacon can win (slingshot required).
 import { hashSeed, mulberry32 } from "@/lib/sdk/rng";
 
@@ -218,7 +218,7 @@ export function genHoleFrom(seedBase: string, planetCount: number, winsCap: numb
       return { ...c, star: placeStar(c, ev.winPath) };
     }
   }
-  // no candidate met the full bar — ship the best solvable one rather than an impossible hole
+  // no candidate met the full bar - ship the best solvable one rather than an impossible hole
   if (fallback) return { ...fallback.c, star: placeStar(fallback.c, fallback.path) };
   const c = last as Candidate;
   return { ...c, star: placeStar(c, []) };

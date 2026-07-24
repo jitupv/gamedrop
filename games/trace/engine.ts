@@ -1,4 +1,4 @@
-// TRACE core: seeded target shapes + similarity scoring. Pure logic — no DOM.
+// TRACE core: seeded target shapes + similarity scoring. Pure logic - no DOM.
 import { hashSeed, mulberry32 } from "@/lib/sdk/rng";
 
 export const CW = 900;
@@ -174,7 +174,7 @@ function dilate(mask: Uint8Array, rad: number): Uint8Array {
   return out;
 }
 
-// 0–100: how close is the drawing to the target (forgiving of small offsets)
+// 0-100: how close is the drawing to the target (forgiving of small offsets)
 export function similarity(target: Stroke[], drawing: Stroke[]): number {
   const T = rasterize(target);
   const D = rasterize(drawing);

@@ -1,5 +1,5 @@
 // Product analytics via PostHog. The project key is write-only and public by
-// design (like Supabase's anon key). No session recordings, no personal data —
+// design (like Supabase's anon key). No session recordings, no personal data -
 // anonymous event counts only, per our privacy policy.
 import posthog from "posthog-js";
 
@@ -16,7 +16,7 @@ function ensure(): boolean {
         api_host: HOST,
         disable_session_recording: true,
         capture_pageview: false, // we send route-aware pageviews ourselves
-        autocapture: false, // custom events only — keeps the data clean
+        autocapture: false, // custom events only - keeps the data clean
         persistence: "localStorage",
       });
       ready = true;

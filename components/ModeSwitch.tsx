@@ -3,7 +3,7 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCalendarDay, faInfinity } from "@fortawesome/free-solid-svg-icons";
 
-// Daily ⇄ Endless segmented toggle — lives above the stat bar, not inside it.
+// Daily ⇄ Endless segmented toggle - lives above the stat bar, not inside it.
 export default function ModeSwitch({
   endless,
   onDaily,

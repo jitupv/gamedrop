@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "GAMEDROP — a brand-new game every Friday";
+export const alt = "GAMEDROP - a brand-new game every Friday";
 
 // the card WhatsApp/X/iMessage render when a gamedrop link is shared
 export default function OpengraphImage() {
@@ -37,7 +37,7 @@ export default function OpengraphImage() {
             fontFamily: "sans-serif",
           }}
         >
-          🍬 🪐 🔦 💎 🚦 ✏️ — six originals · a fresh challenge every midnight
+          🍬 🪐 🔦 💎 🚦 ✏️ - six originals · a fresh challenge every midnight
         </div>
         <div
           style={{

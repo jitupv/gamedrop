@@ -133,7 +133,7 @@ export default function SonarGame() {
 
   const doPing = () => {
     if (phaseRef.current !== "playing") return;
-    chirp(1250, 320, 0.38, "sine", 0.08); // the sonar ping — the game's voice
+    chirp(1250, 320, 0.38, "sine", 0.08); // the sonar ping - the game's voice
     pingsRef.current.push({ x: playerRef.current.x, y: playerRef.current.y, t: performance.now() });
     pingCountRef.current += 1;
     setPings(pingCountRef.current);
@@ -216,13 +216,11 @@ export default function SonarGame() {
     };
 
     const draw = (now: number) => {
+      try {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const lv = levelRef.current;
-      if (!lv) {
-        raf = requestAnimationFrame(draw);
-        return;
-      }
+      if (!lv) return;
       const { cell, ox, oy } = geom(lv);
       const p = playerRef.current;
 
@@ -293,7 +291,7 @@ export default function SonarGame() {
           }
         }
 
-        // endless: the lantern burns down — out of time means the dark wins
+        // endless: the lantern burns down - out of time means the dark wins
         if (modeRef.current === "endless" && phaseRef.current === "playing") {
           const remain = budgetRef.current - (now - levelStartRef.current) / 1000;
           if (remain <= 0) setPhaseBoth("runOver");
@@ -386,8 +384,12 @@ export default function SonarGame() {
       ctx.beginPath();
       ctx.arc(p.x, p.y, cell * 0.24, 0, Math.PI * 2);
       ctx.fill();
-
-      raf = requestAnimationFrame(draw);
+      } catch (err) {
+        // one bad frame must never kill the game - log it, skip it, keep drawing
+        console.error("SONAR frame error:", err);
+      } finally {
+        raf = requestAnimationFrame(draw);
+      }
     };
     raf = requestAnimationFrame(draw);
 
@@ -515,7 +517,7 @@ export default function SonarGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">3. Ping to see.</span> The wave reveals
-                nearby walls, then fades. Memorize fast — every ping counts against you.
+                nearby walls, then fades. Memorize fast - every ping counts against you.
               </li>
               <li>
                 <span className="tx-ink font-semibold">4. Three mazes a day,</span> each bigger.
@@ -531,7 +533,7 @@ export default function SonarGame() {
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
             >
-              Got it — into the dark
+              Got it - into the dark
             </button>
           </div>
         </div>
@@ -546,7 +548,7 @@ export default function SonarGame() {
               {levelStats[levelIdx]?.pings} pings · {fmtTime(levelStats[levelIdx]?.time || 0)}
             </p>
             <button onClick={() => startLevel(levelIdx + 1)} className="btn-ink px-6 py-2.5">
-              Maze {levelIdx + 2} — deeper &amp; darker →
+              Maze {levelIdx + 2} - deeper &amp; darker →
             </button>
             <p className="text-xs tx-soft mt-4">Same mazes for everyone today.</p>
           </div>
@@ -562,9 +564,9 @@ export default function SonarGame() {
             `${levelStats[levelIdx]?.pings ?? 0} pings`,
             cleared >= endlessBest && cleared > 0 ? "Best run 🏆" : `Best: ${endlessBest}`,
           ]}
-          primary={{ label: `Maze #${levelIdx + 2} — bigger →`, onClick: () => loadEndless(levelIdx + 1) }}
+          primary={{ label: `Maze #${levelIdx + 2} - bigger →`, onClick: () => loadEndless(levelIdx + 1) }}
           secondary={{ label: "Stop the run", onClick: restartDay }}
-          footnote="The lantern burns for the whole maze — bigger maze, longer wick, darker dark."
+          footnote="The lantern burns for the whole maze - bigger maze, longer wick, darker dark."
         />
       )}
 
@@ -599,8 +601,8 @@ export default function SonarGame() {
             </div>
             <p className="text-xs tx-soft mt-3">
               {endlessBest > 0
-                ? `Your endless best: ${endlessBest} mazes — beat it?`
-                : "Endless mazes keep growing — how deep can you go?"}
+                ? `Your endless best: ${endlessBest} mazes - beat it?`
+                : "Endless mazes keep growing - how deep can you go?"}
             </p>
             <button onClick={restartDay} className="text-xs tx-muted underline underline-offset-2 mt-2">
               or replay today&apos;s mazes

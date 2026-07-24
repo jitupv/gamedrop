@@ -30,19 +30,21 @@ export interface HeistCfg {
   gems: number;
 }
 
+// fewer, BIGGER tiles - phone-friendly touch targets; the difficulty comes
+// from guards + the all-gems vault lock + the no-revisit rule, not from size
 export const LEVELS: HeistCfg[] = [
-  { cols: 12, rows: 9, guards: 2, gems: 3 },
-  { cols: 14, rows: 10, guards: 3, gems: 4 },
-  { cols: 16, rows: 11, guards: 4, gems: 5 },
+  { cols: 9, rows: 7, guards: 2, gems: 3 },
+  { cols: 10, rows: 7, guards: 3, gems: 4 },
+  { cols: 11, rows: 8, guards: 4, gems: 4 },
 ];
 
 // endless mode: museums keep growing and gaining guards, forever
 export function endlessCfg(i: number): HeistCfg {
   return {
-    cols: Math.min(16, 11 + Math.floor(i / 2)),
-    rows: Math.min(11, 8 + Math.floor(i / 3)),
-    guards: Math.min(6, 1 + Math.floor((i + 1) / 2)),
-    gems: Math.min(5, 2 + Math.floor(i / 2)),
+    cols: Math.min(13, 9 + Math.floor(i / 2)),
+    rows: Math.min(9, 7 + Math.floor(i / 3)),
+    guards: Math.min(5, 2 + Math.floor((i + 1) / 2)),
+    gems: Math.min(5, 3 + Math.floor(i / 3)),
   };
 }
 
@@ -93,49 +95,71 @@ function plainBFS(lv: Pick<HeistLevel, "cols" | "rows" | "walls">, from: Cell, t
   return false;
 }
 
-// full-loot proof: can the thief collect EVERY gem and then reach the exit,
-// dodging guards the whole way? State = (cell, time, gem bitmask); the exit
-// only counts with all gems in the bag — matching the in-game locked vault.
-function spacetimeBFS(lv: HeistLevel, horizon = 220): boolean {
+// full-loot, NO-REVISIT proof: one self-avoiding route must collect EVERY gem
+// and END on the exit, dodging moving guards - exactly the rules the player
+// plans under (each tile once, vault locked until the bag is full).
+function fullLootRoute(lv: HeistLevel, budget = 150000): boolean {
   const fullMask = (1 << lv.gems.length) - 1;
-  const gemAt = new Map<number, number>();
-  lv.gems.forEach((gm, i) => gemAt.set(gm.r * lv.cols + gm.c, i));
-  const startMask = gemAt.has(lv.start.r * lv.cols + lv.start.c)
-    ? 1 << (gemAt.get(lv.start.r * lv.cols + lv.start.c) as number)
-    : 0;
+  const gemIdx = new Map<number, number>();
+  lv.gems.forEach((gm, i) => gemIdx.set(gm.r * lv.cols + gm.c, i));
+  const startId = lv.start.r * lv.cols + lv.start.c;
+  const startGem = gemIdx.get(startId);
+  const startMask = startGem === undefined ? 0 : 1 << startGem;
+  const visited = new Uint8Array(lv.cols * lv.rows);
+  visited[startId] = 1;
+  let nodes = 0;
 
-  const cells = lv.cols * lv.rows;
-  const key = (c: number, r: number, t: number, mask: number) =>
-    ((t * cells + r * lv.cols + c) << 5) | mask; // gems ≤ 5 → mask fits in 5 bits
-  const seen = new Set<number>([key(lv.start.c, lv.start.r, 0, startMask)]);
-  const q: { c: number; r: number; t: number; mask: number }[] = [
-    { c: lv.start.c, r: lv.start.r, t: 0, mask: startMask },
+  const dirs = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
   ];
-  while (q.length > 0) {
-    if (seen.size > 600000) return false; // state-space blowout — reject, try next seed
-    const cur = q.shift() as { c: number; r: number; t: number; mask: number };
-    if (cur.c === lv.exit.c && cur.r === lv.exit.r && cur.mask === fullMask) return true;
-    if (cur.t >= horizon) continue;
-    for (const [dc, dr] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
-      const c = cur.c + dc;
-      const r = cur.r + dr;
-      if (c < 0 || r < 0 || c >= lv.cols || r >= lv.rows || lv.walls[r][c]) continue;
-      const t = cur.t + 1;
-      const gi = gemAt.get(r * lv.cols + c);
-      const mask = gi === undefined ? cur.mask : cur.mask | (1 << gi);
-      const k = key(c, r, t, mask);
-      if (seen.has(k)) continue;
-      if (caughtAt(lv.guards, { c: cur.c, r: cur.r }, { c, r }, t)) continue;
-      seen.add(k);
-      q.push({ c, r, t, mask });
+
+  const dfs = (c: number, r: number, t: number, mask: number): boolean => {
+    if (nodes++ > budget) return false; // search blowout - reject, try next seed
+    if (mask === fullMask && c === lv.exit.c && r === lv.exit.r) return true;
+
+    // move ordering: head toward the nearest missing gem (exit once bag is full)
+    let target: Cell = lv.exit;
+    if (mask !== fullMask) {
+      let bd = Infinity;
+      lv.gems.forEach((gm, i) => {
+        if (mask & (1 << i)) return;
+        const d = Math.abs(gm.c - c) + Math.abs(gm.r - r);
+        if (d < bd) {
+          bd = d;
+          target = gm;
+        }
+      });
     }
-  }
-  return false;
+    const opts = dirs
+      .map(([dc, dr]) => ({ c: c + dc, r: r + dr }))
+      .filter(
+        (p) => p.c >= 0 && p.r >= 0 && p.c < lv.cols && p.r < lv.rows && !lv.walls[p.r][p.c]
+      )
+      .sort(
+        (a, b) =>
+          Math.abs(a.c - target.c) + Math.abs(a.r - target.r) -
+          (Math.abs(b.c - target.c) + Math.abs(b.r - target.r))
+      );
+
+    for (const p of opts) {
+      const id = p.r * lv.cols + p.c;
+      if (visited[id]) continue;
+      const gi = gemIdx.get(id);
+      const m2 = gi === undefined ? mask : mask | (1 << gi);
+      // the exit is a locked door until every gem is in the bag
+      if (p.c === lv.exit.c && p.r === lv.exit.r && m2 !== fullMask) continue;
+      if (caughtAt(lv.guards, { c, r }, p, t + 1)) continue;
+      visited[id] = 1;
+      if (dfs(p.c, p.r, t + 1, m2)) return true;
+      visited[id] = 0;
+    }
+    return false;
+  };
+
+  return dfs(lv.start.c, lv.start.r, 0, startMask);
 }
 
 export function genLevel(dayKey: string, levelIdx: number): HeistLevel {
@@ -193,7 +217,7 @@ export function genLevelFrom(seedBase: string, cfg: HeistCfg): HeistLevel {
     if (gems.length < cfg.gems) continue;
     if (!plainBFS(lv, start, exit)) continue;
     if (!gems.every((gm) => plainBFS(lv, start, gm))) continue;
-    if (!spacetimeBFS(lv)) continue;
+    if (!fullLootRoute(lv)) continue;
     return lv;
   }
   // deterministic fallback: guard-free open room (should practically never happen)

@@ -2,7 +2,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCalendarDay, faEarthAsia, faInfinity, faShieldHalved } from "@fortawesome/free-solid-svg-icons";
 import SimplePage from "@/components/SimplePage";
 
-export const metadata = { title: "About — GAMEDROP" };
+export const metadata = { title: "About - GAMEDROP" };
 
 export default function About() {
   return (
@@ -26,7 +26,7 @@ export default function About() {
           </span>
           <div>
             <h3>One challenge. Everyone.</h3>
-            <p>Every game serves a fresh daily challenge at midnight — the same challenge for every player in the world.</p>
+            <p>Every game serves a fresh daily challenge at midnight - the same challenge for every player in the world.</p>
           </div>
         </div>
         <div className="sp-feature">
@@ -49,10 +49,10 @@ export default function About() {
         </div>
       </div>
       <p>
-        Beat today&apos;s challenge, share your result, and dare your friends to do better — every
+        Beat today&apos;s challenge, share your result, and dare your friends to do better - every
         share link carries your score as a challenge.
       </p>
-      <p>Made with ☕ &amp; 🍬 — new game every Friday.</p>
+      <p>Made with ☕ &amp; 🍬 - new game every Friday.</p>
     </SimplePage>
   );
 }

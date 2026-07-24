@@ -66,7 +66,7 @@ export function pointToGame(
   return view.rotate ? { x: lw - y, y: x } : { x, y };
 }
 
-// draw text pinned to the ELEMENT (screen) space — HUD text stays upright and
+// draw text pinned to the ELEMENT (screen) space - HUD text stays upright and
 // positioned regardless of world rotation. fn receives (elW, elH).
 export function inScreenSpace(
   ctx: CanvasRenderingContext2D,

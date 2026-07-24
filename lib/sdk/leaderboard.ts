@@ -1,4 +1,4 @@
-// Global leaderboards on Supabase — anonymous users, zero sign-up.
+// Global leaderboards on Supabase - anonymous users, zero sign-up.
 // Everything here no-ops gracefully when the env keys are missing,
 // so the game works fully offline/local until Supabase is configured.
 import { SupabaseClient, createClient } from "@supabase/supabase-js";
@@ -28,7 +28,7 @@ const ANIMALS = [
   "Gecko", "Lynx", "Owl", "Badger", "Cobra", "Heron", "Wolf", "Mantis",
 ];
 
-// a fun, anonymous, persistent handle — e.g. "SwiftOtter42"
+// a fun, anonymous, persistent handle - e.g. "SwiftOtter42"
 export function myHandle(): string {
   if (typeof window === "undefined") return "Player";
   try {
@@ -95,7 +95,7 @@ export function submitScore(
         { onConflict: "user_id,game,mode,day" }
       );
     } catch {
-      // network/offline — local play continues untouched
+      // network/offline - local play continues untouched
     }
   })();
 }
@@ -103,6 +103,97 @@ export function submitScore(
 // endless bests are always "higher is better" (levels survived / points)
 export function reportEndlessBest(game: string, score: number): void {
   submitScore(game, "endless", "all", score, true);
+}
+
+// ---- optional accounts (guest-first; email upgrade keeps the same identity) ----
+
+export interface AccountInfo {
+  userId: string | null;
+  email: string | null; // null = guest (anonymous)
+}
+
+export async function getAccount(): Promise<AccountInfo> {
+  const s = sb();
+  if (!s) return { userId: null, email: null };
+  try {
+    const { data } = await s.auth.getSession();
+    const u = data.session?.user;
+    // signed in on a new device: restore the display name that travels in metadata
+    const metaHandle = u?.user_metadata?.handle;
+    if (u?.email && typeof metaHandle === "string" && typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem("gd:handle", metaHandle);
+      } catch {}
+    }
+    return { userId: u?.id ?? null, email: u?.email ?? null };
+  } catch {
+    return { userId: null, email: null };
+  }
+}
+
+// attach an email to the current guest - SAME user id, so every score and the
+// board name survive. If the email already has an account, send a sign-in link.
+export async function attachEmail(email: string): Promise<{ ok: boolean; message: string }> {
+  const s = sb();
+  if (!s) return { ok: false, message: "The leaderboard is offline right now." };
+  try {
+    await ensureUser();
+    const { error } = await s.auth.updateUser({ email });
+    if (!error)
+      return { ok: true, message: "Check your inbox - click the link to confirm your account." };
+    const { error: e2 } = await s.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
+    if (!e2)
+      return { ok: true, message: "That email already has an account - we sent a sign-in link." };
+    return { ok: false, message: e2.message };
+  } catch {
+    return { ok: false, message: "Could not reach the server - try again." };
+  }
+}
+
+export async function signOutAccount(): Promise<void> {
+  try {
+    await sb()?.auth.signOut();
+  } catch {}
+}
+
+// display-name rules: public wall, so keep it clean and simple
+const RESERVED = ["admin", "gamedrop", "official", "moderator", "system"];
+const BLOCKED = ["fuck", "shit", "bitch", "asshole", "chutiya", "madarchod", "bhosdi"];
+
+export function validateHandle(name: string): string | null {
+  const n = name.trim();
+  if (!/^[A-Za-z0-9 _.\-]{3,24}$/.test(n))
+    return "3-24 characters: letters, numbers, spaces, . _ -";
+  const low = n.toLowerCase();
+  if (RESERVED.some((b) => low.includes(b))) return "That name is reserved.";
+  if (BLOCKED.some((b) => low.replace(/[^a-z]/g, "").includes(b)))
+    return "Keep it family-friendly.";
+  return null;
+}
+
+// rename everywhere: this device, the account metadata, and every past score row
+export async function renameHandle(name: string): Promise<{ ok: boolean; message: string }> {
+  const err = validateHandle(name);
+  if (err) return { ok: false, message: err };
+  const n = name.trim();
+  try {
+    window.localStorage.setItem("gd:handle", n);
+  } catch {}
+  const s = sb();
+  if (!s) return { ok: true, message: "Name saved on this device." };
+  try {
+    const uid = await ensureUser();
+    if (uid) {
+      await s.auth.updateUser({ data: { handle: n } });
+      await s.from("scores").update({ handle: n }).eq("user_id", uid);
+    }
+    return { ok: true, message: `Done - boards now show ${n}.` };
+  } catch {
+    return { ok: true, message: "Saved on this device; boards update when you're online." };
+  }
 }
 
 // ---- reading boards ----------------------------------------------------

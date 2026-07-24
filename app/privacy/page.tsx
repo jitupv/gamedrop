@@ -1,6 +1,6 @@
 import SimplePage from "@/components/SimplePage";
 
-export const metadata = { title: "Privacy — GAMEDROP" };
+export const metadata = { title: "Privacy - GAMEDROP" };
 
 export default function Privacy() {
   return (
@@ -8,9 +8,16 @@ export default function Privacy() {
       <p>Last updated: July 2026</p>
       <h2>What we collect</h2>
       <p>
-        GAMEDROP currently has no accounts and no sign-in. Your game progress — scores, streaks,
-        settings — is stored only in your browser&apos;s local storage, on your device. We cannot
-        see it, and clearing your browser data removes it.
+        You can play everything without an account. Your game progress - scores, streaks,
+        settings - is stored in your browser&apos;s local storage, on your device. If you play
+        while online, your leaderboard scores and display name are stored with our database
+        provider (Supabase) under an anonymous identity.
+      </p>
+      <h2>Optional accounts</h2>
+      <p>
+        If you choose to add your email, it is used only to sign you in and to sync your name
+        and scores across devices. We do not sell it, share it, or send marketing to it without
+        asking you first. Playing never requires an account.
       </p>
       <h2>Analytics</h2>
       <p>

@@ -5,7 +5,7 @@ import "@fortawesome/fontawesome-svg-core/styles.css";
 import Analytics from "@/components/Analytics";
 import "./globals.css";
 
-// FA CSS is imported above once — stop the runtime from injecting it (avoids icon flash)
+// FA CSS is imported above once - stop the runtime from injecting it (avoids icon flash)
 config.autoAddCss = false;
 
 const inter = Inter({
@@ -25,18 +25,18 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "GAMEDROP — a brand-new game every Friday",
+  title: "GAMEDROP - a brand-new game every Friday",
   description:
     "Six original games. A fresh daily challenge in every one. Play today's free.",
   openGraph: {
-    title: "GAMEDROP — a brand-new game every Friday",
+    title: "GAMEDROP - a brand-new game every Friday",
     description: "Six original games. A fresh daily challenge in every one. Play today's free.",
     siteName: "GAMEDROP",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "GAMEDROP — a brand-new game every Friday",
+    title: "GAMEDROP - a brand-new game every Friday",
     description: "Six original games. A fresh daily challenge in every one. Play today's free.",
   },
 };
@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
-        {/* set theme before paint — light is the default, dark only if chosen */}
+        {/* set theme before paint - light is the default, dark only if chosen */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){var t='light';try{var s=localStorage.getItem('gd:theme');if(s==='dark'||s==='light')t=s;}catch(e){}document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;})();`,

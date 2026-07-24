@@ -257,7 +257,7 @@ export default function RushGame() {
         ctx.stroke();
       }
 
-      // HUD text pinned to screen space — stays upright even when the world rotates
+      // HUD text pinned to screen space - stays upright even when the world rotates
       inScreenSpace(ctx, view, (elW, elH) => {
         ctx.textAlign = "center";
         if (phaseRef.current !== "ready") {
@@ -355,7 +355,7 @@ export default function RushGame() {
             <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
                 <span className="tx-ink font-semibold">1. You are the traffic light.</span> One
-                tap switches which road flows — green lines go, red lines wait.
+                tap switches which road flows - green lines go, red lines wait.
               </li>
               <li>
                 <span className="tx-ink font-semibold">2. Cars keep coming, faster and faster.</span>{" "}
@@ -363,7 +363,7 @@ export default function RushGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">3. One touch = game over.</span> A car
-                already in the crossing can&apos;t stop — time your switches.
+                already in the crossing can&apos;t stop - time your switches.
               </li>
               <li>
                 <span className="tx-ink font-semibold">4. Pass {DAILY_GOAL} cars</span> to clear
@@ -379,7 +379,7 @@ export default function RushGame() {
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
             >
-              Got it — open the road
+              Got it - open the road
             </button>
           </div>
         </div>

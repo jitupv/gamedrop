@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowRight, faCheck, faFire, faHourglassHalf, faStar } from "@fortawesome/free-solid-svg-icons";
+import { faArrowRight, faCheck, faCircleUser, faFire, faHourglassHalf, faStar } from "@fortawesome/free-solid-svg-icons";
+import AccountModal from "@/components/AccountModal";
 import GameArt from "@/components/GameArt";
+import HomeBoard from "@/components/HomeBoard";
 import ThemeToggle from "@/components/ThemeToggle";
 import { GAMES, featuredGameId } from "@/lib/games";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult } from "@/lib/sdk/storage";
 
-// homepage-only copy & styling per game — gameplay meta lives in lib/games.ts
+// homepage-only copy & styling per game - gameplay meta lives in lib/games.ts
 // `drop` = release order in the catalog story; the featured game is the newest drop
 const HOME: Record<
   string,
@@ -22,39 +24,39 @@ const HOME: Record<
     desc: "Slide entire rows and columns. Line up three. Chain combos before the moves run out.",
     lede: ["Swipe whole rows.", "Match the candy.", "Chain combos before the moves run out."],
     diff: 2,
-    time: "3–5 min",
+    time: "3-5 min",
   },
   orbit: {
     accent: "#9d8cff",
     genre: "Physics",
-    desc: "One probe, real gravity. Sling around planets and thread the needle — no direct shots.",
+    desc: "One probe, real gravity. Sling around planets and thread the needle - no direct shots.",
     lede: ["One probe, real gravity.", "Sling around planets.", "Direct shots don't count here."],
     diff: 3,
-    time: "2–4 min",
+    time: "2-4 min",
   },
   sonar: {
     accent: "#3fd6c0",
     genre: "Memory maze",
-    desc: "You're blind in a maze. Each ping lights it up for a heartbeat — remember the walls.",
+    desc: "You're blind in a maze. Each ping lights it up for a heartbeat - remember the walls.",
     lede: ["Ping the dark.", "Memorize the maze.", "Escape in as few pings as your nerves allow."],
     diff: 2,
-    time: "2–4 min",
+    time: "2-4 min",
   },
   heist: {
     accent: "#3fbf7f",
     genre: "Stealth logic",
-    desc: "Plan the perfect route past patrolling guards — they move when you move.",
+    desc: "Plan the perfect route past patrolling guards - they move when you move.",
     lede: ["Case the museum.", "Plan every step.", "The guards move when you move."],
     diff: 3,
-    time: "3–6 min",
+    time: "3-6 min",
   },
   rush: {
     accent: "#ffa23e",
     genre: "Reflex",
-    desc: "You control the traffic lights, not the cars. Keep the intersection flowing — no crashes.",
+    desc: "You control the traffic lights, not the cars. Keep the intersection flowing - no crashes.",
     lede: ["You are the traffic light.", "Time every green.", "Don't let them touch."],
     diff: 2,
-    time: "2–3 min",
+    time: "2-3 min",
   },
   trace: {
     accent: "#6fa8ff",
@@ -62,7 +64,7 @@ const HOME: Record<
     desc: "One stroke, no undo. Trace the target shape as precisely as your hand allows.",
     lede: ["See it once.", "Draw it blind.", "One stroke, no undo."],
     diff: 1,
-    time: "1–3 min",
+    time: "1-3 min",
   },
 };
 
@@ -75,9 +77,10 @@ export default function Home() {
   const [todayId, setTodayId] = useState(GAMES[0].id);
   const [streak, setStreak] = useState(0);
   const [doneToday, setDoneToday] = useState<Record<string, boolean>>({});
-  const [midnight, setMidnight] = useState("—:—:—");
-  const [friday, setFriday] = useState("—");
+  const [midnight, setMidnight] = useState("-:-:-");
+  const [friday, setFriday] = useState("-");
   const [stickyHidden, setStickyHidden] = useState(true);
+  const [showAccount, setShowAccount] = useState(false);
   const ctaRef = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
@@ -127,9 +130,9 @@ export default function Home() {
 
   const today = GAMES.find((g) => g.id === todayId)!;
   const meta = HOME[today.id];
-  // past drops, newest first — the featured game is always the latest drop
+  // past drops, newest first - the featured game is always the latest drop
   const vault = GAMES.filter((g) => g.id !== todayId).sort((a, b) => b.drop - a.drop);
-  const chNum = num !== null ? `#${pad(num)}` : "#—";
+  const chNum = num !== null ? `#${pad(num)}` : "#-";
 
   return (
     <div className="hm" style={{ "--g": meta.accent } as React.CSSProperties}>
@@ -139,7 +142,16 @@ export default function Home() {
             GAMEDROP<span>.</span>
           </Link>
           <nav className="hm-nav">
+            <a href="#board">Leaderboard</a>
             <a href="#vault">The Vault</a>
+            <button
+              type="button"
+              className="theme-toggle"
+              aria-label="Your player card"
+              onClick={() => setShowAccount(true)}
+            >
+              <FontAwesomeIcon icon={faCircleUser} width={15} height={15} />
+            </button>
             <ThemeToggle />
             {streak > 0 && (
               <span className="hm-streak" title="Your daily streak">
@@ -178,7 +190,7 @@ export default function Home() {
                 </span>
               </Link>
               <p className="hm-meta">
-                Challenge <b>{chNum}</b> — same puzzle for everyone · fresh puzzle at midnight{" "}
+                Challenge <b>{chNum}</b> - same puzzle for everyone · fresh puzzle at midnight{" "}
                 <b className="hm-count">{midnight}</b>
               </p>
               {streak > 0 && (
@@ -186,7 +198,7 @@ export default function Home() {
                   <b>
                     <FontAwesomeIcon icon={faFire} width={12} height={12} /> {streak}-day streak
                   </b>{" "}
-                  — today&apos;s challenge keeps it alive.
+                  - today&apos;s challenge keeps it alive.
                 </p>
               )}
             </div>
@@ -197,6 +209,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <HomeBoard game={today} accent={meta.accent} />
 
       <section className="hm-strip">
         <div className="hm-wrap hm-strip-inner">
@@ -226,7 +240,7 @@ export default function Home() {
             <span className="k">Drop {pad(today.drop + 1)} · next Friday</span>
             <h3>Something new is coming.</h3>
             <p>
-              A brand-new original game joins the Vault every Friday. No reruns, no clones — we
+              A brand-new original game joins the Vault every Friday. No reruns, no clones - we
               build them from scratch.
             </p>
             <span className="hm-next-count">
@@ -243,7 +257,7 @@ export default function Home() {
       <section className="hm-vault hm-wrap" id="vault">
         <div className="hm-vhead">
           <h2>The Vault</h2>
-          <p>Every game we&apos;ve ever dropped — each with its own daily challenge and endless mode.</p>
+          <p>Every game we&apos;ve ever dropped - each with its own daily challenge and endless mode.</p>
         </div>
 
         <div className="hm-grid">
@@ -313,11 +327,13 @@ export default function Home() {
         </div>
       </footer>
 
+      {showAccount && <AccountModal onClose={() => setShowAccount(false)} />}
+
       <div className={`hm-sticky ${stickyHidden ? "is-off" : ""}`}>
         <div className="hm-sticky-inner">
           <div className="s-info">
             <span className="s-name">
-              {today.name} — Challenge {chNum}
+              {today.name} - Challenge {chNum}
             </span>
             <span className="s-sub">Fresh puzzle in {midnight}</span>
           </div>

@@ -1,6 +1,6 @@
 import SimplePage from "@/components/SimplePage";
 
-export const metadata = { title: "Terms — GAMEDROP" };
+export const metadata = { title: "Terms - GAMEDROP" };
 
 export default function Terms() {
   return (

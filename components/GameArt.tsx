@@ -1,4 +1,4 @@
-// Pure CSS/SVG gameplay scenes — one per game. Used at hero size and as
+// Pure CSS/SVG gameplay scenes - one per game. Used at hero size and as
 // vault thumbnails; everything is percentage-positioned so it scales.
 
 const TILT_TILES = [

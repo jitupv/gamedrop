@@ -1,4 +1,4 @@
-// Global sound switch — one setting, respected by every game.
+// Global sound switch - one setting, respected by every game.
 export function isMuted(): boolean {
   try {
     return window.localStorage.getItem("gd:muted") === "1";
@@ -13,7 +13,7 @@ export function setMuted(muted: boolean): void {
   } catch {}
 }
 
-// ---- shared tiny synth — every game's sound effects, one mute switch ----
+// ---- shared tiny synth - every game's sound effects, one mute switch ----
 
 let actx: AudioContext | null = null;
 
@@ -49,7 +49,7 @@ export function blip(freq: number, dur = 0.1, type: OscillatorType = "triangle",
   o.stop(a.currentTime + dur);
 }
 
-// pitch slide — whooshes, pings, falls
+// pitch slide - whooshes, pings, falls
 export function chirp(
   from: number,
   to: number,

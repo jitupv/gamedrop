@@ -31,7 +31,7 @@ const GAP = 8;
 const PAD = 10;
 const BOARD = SIZE * TILE + (SIZE - 1) * GAP + PAD * 2; // canvas logical size
 
-// muted editorial palette — tiles match the paper UI; each color also gets a
+// muted editorial palette - tiles match the paper UI; each color also gets a
 // tone-on-tone symbol so types read without relying on color alone
 const COLORS = ["#c96f4a", "#d9a441", "#8a9a5b", "#6f8fa8", "#9d7a94", "#b25d6d"];
 const DARKS = ["#8d4a2e", "#97701f", "#5c683a", "#48626f", "#6b5064", "#7d3d4a"];
@@ -309,7 +309,7 @@ export default function TiltGame() {
     const st = stateRef.current;
 
     if (modeRef.current === "endless") {
-      // colors escalate as the run grows — the well has no bottom, only steeper walls
+      // colors escalate as the run grows - the well has no bottom, only steeper walls
       if (st) st.colors = Math.min(6, 4 + (scoreRef.current >= 3000 ? 1 : 0) + (scoreRef.current >= 8000 ? 1 : 0));
       if (st && !hasAnyMove(st)) {
         sfxRef.current.fail();
@@ -706,7 +706,7 @@ export default function TiltGame() {
         <canvas ref={canvasRef} className="board" />
       </div>
       <p className="hint shrink-0">
-        hold &amp; drag to preview — release to commit
+        hold &amp; drag to preview - release to commit
         <span className="hidden sm:inline"> · arrow keys work too</span> ·{" "}
         {mode === "daily" ? (
           <button onClick={startEndless}>endless mode →</button>
@@ -737,7 +737,7 @@ export default function TiltGame() {
             <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
                 <span className="tx-ink font-semibold">1. Swipe any direction.</span> The{" "}
-                <em>whole board</em> slides that way — every tile packs toward that edge.
+                <em>whole board</em> slides that way - every tile packs toward that edge.
               </li>
               <li>
                 <span className="tx-ink font-semibold">2. Hold before releasing.</span>{" "}
@@ -747,7 +747,7 @@ export default function TiltGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">3. Line up 3+ of a color</span> (row
-                or column) and they pop. Pops make tiles slide again — chains multiply your points.
+                or column) and they pop. Pops make tiles slide again - chains multiply your points.
               </li>
               <li>
                 <span className="tx-ink font-semibold">4. Hit the target</span> before your
@@ -763,7 +763,7 @@ export default function TiltGame() {
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
             >
-              Got it — let&apos;s play
+              Got it - let&apos;s play
             </button>
           </div>
         </div>
@@ -784,7 +784,7 @@ export default function TiltGame() {
       )}
 
       {phase === "levelFail" && (
-        <Overlay emoji="😮‍💨" title="Out of moves" sub={`${score.toLocaleString()} / ${cfg.target.toLocaleString()} — so close`}>
+        <Overlay emoji="😮‍💨" title="Out of moves" sub={`${score.toLocaleString()} / ${cfg.target.toLocaleString()} - so close`}>
           <button onClick={() => startLevel(levelIdx)} className="btn-ink px-6 py-2.5">
             Retry level {levelIdx + 1}
           </button>
@@ -802,8 +802,8 @@ export default function TiltGame() {
           pill={{ label: "Keep going ∞", onClick: startEndless }}
           footnote={
             endlessBest > 0
-              ? `Your endless best: ${endlessBest.toLocaleString()} — beat it?`
-              : "Endless mode has no bottom — how far can you go?"
+              ? `Your endless best: ${endlessBest.toLocaleString()} - beat it?`
+              : "Endless mode has no bottom - how far can you go?"
           }
           countdown
         />

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-// live ticker to the next local midnight — the daily reset moment
+// live ticker to the next local midnight - the daily reset moment
 export default function Countdown({ prefix = "New challenge in" }: { prefix?: string }) {
   const [left, setLeft] = useState("--:--:--");
 

@@ -285,7 +285,7 @@ export default function TraceGame() {
 
       if (phaseRef.current === "memorize") {
         const remain = Math.ceil(MEMORIZE_S - phaseAge);
-        // countdown pinned to screen space — always upright, always top-right
+        // countdown pinned to screen space - always upright, always top-right
         inScreenSpace(ctx, view, (elW) => {
           ctx.fillStyle = "rgba(41,36,32,0.8)";
           ctx.textAlign = "center";
@@ -352,7 +352,7 @@ export default function TraceGame() {
             <div className="stat" key={i}>
               <span className="lab">#{i + 1}</span>
               <span className={`val${scores[i] === undefined ? " tx-soft" : ""}`}>
-                {scores[i] === undefined ? "—" : `${scores[i]}%`}
+                {scores[i] === undefined ? "-" : `${scores[i]}%`}
               </span>
             </div>
           ))}
@@ -360,7 +360,7 @@ export default function TraceGame() {
           <>
             <div className="stat">
               <span className="lab">Hearts</span>
-              <span className={`val${hearts <= 1 ? " warn" : ""}`}>{"♥".repeat(hearts) || "—"}</span>
+              <span className={`val${hearts <= 1 ? " warn" : ""}`}>{"♥".repeat(hearts) || "-"}</span>
             </div>
             <div className="stat">
               <span className="lab">Cleared</span>
@@ -422,7 +422,7 @@ export default function TraceGame() {
                 Burn it into your memory.
               </li>
               <li>
-                <span className="tx-ink font-semibold">2. It vanishes — now redraw it</span> in
+                <span className="tx-ink font-semibold">2. It vanishes - now redraw it</span> in
                 the same place, same size, freehand.
               </li>
               <li>
@@ -443,7 +443,7 @@ export default function TraceGame() {
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
             >
-              Got it — sharpen the pencil
+              Got it - sharpen the pencil
             </button>
           </div>
         </div>
@@ -453,13 +453,13 @@ export default function TraceGame() {
         <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
           <div className="panel text-center max-w-sm">
             <h2 className="font-serif text-xl font-bold tx-ink mb-1">
-              {lastScore >= FAIL_LINE ? `${lastScore}% — it lives on` : `${lastScore}% — 💔 heart lost`}
+              {lastScore >= FAIL_LINE ? `${lastScore}% - it lives on` : `${lastScore}% - 💔 heart lost`}
             </h2>
             <p className="text-xs tx-muted mb-3">
               {"♥".repeat(hearts)} · {cleared} cleared · best {endlessBest}
             </p>
             <button onClick={() => loadSketch(endlessIdx + 1)} className="btn-ink px-6 py-2">
-              Sketch #{endlessIdx + 2} — more tangled →
+              Sketch #{endlessIdx + 2} - more tangled →
             </button>
           </div>
         </div>
@@ -481,12 +481,12 @@ export default function TraceGame() {
         <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
           <div className="panel text-center max-w-sm">
             <h2 className="font-serif text-xl font-bold tx-ink mb-1">
-              {scores[round] >= 75 ? "Photographic! " : scores[round] >= 50 ? "Not bad — " : "Rough — "}
+              {scores[round] >= 75 ? "Photographic! " : scores[round] >= 50 ? "Not bad - " : "Rough - "}
               {scores[round]}%
             </h2>
             <p className="text-xs tx-muted mb-3">ink = original · amber = you</p>
             <button onClick={() => startRound(round + 1)} className="btn-ink px-6 py-2">
-              Sketch {round + 2} — harder →
+              Sketch {round + 2} - harder →
             </button>
           </div>
         </div>
@@ -511,8 +511,8 @@ export default function TraceGame() {
             </div>
             <p className="text-xs tx-soft mt-3">
               {endlessBest > 0
-                ? `Your endless best: ${endlessBest} sketches — beat it?`
-                : "Endless sketches, three hearts — how far can you go?"}
+                ? `Your endless best: ${endlessBest} sketches - beat it?`
+                : "Endless sketches, three hearts - how far can you go?"}
             </p>
             <button onClick={restartDay} className="text-xs tx-muted underline underline-offset-2 mt-2">
               or replay today&apos;s sketches

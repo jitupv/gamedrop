@@ -9,7 +9,7 @@ import { todayKey } from "@/lib/sdk/daily";
 import { DayRecord, getAllResults, getStreak, maxStreak } from "@/lib/sdk/storage";
 import { Board, fetchBoard, leaderboardEnabled } from "@/lib/sdk/leaderboard";
 
-// Your story with this game — the Wordle stats moment — plus the global board.
+// Your story with this game - the Wordle stats moment - plus the global board.
 export default function StatsModal({ gameId, onClose }: { gameId: string; onClose: () => void }) {
   const meta = GAMES.find((g) => g.id === gameId);
   const [records, setRecords] = useState<DayRecord[]>([]);
@@ -100,7 +100,7 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
           </p>
         )}
 
-        {/* ---- global leaderboard (always visible — states explain themselves) ---- */}
+        {/* ---- global leaderboard (always visible - states explain themselves) ---- */}
         <div className="lb">
           <div className="lb-head">
             <span className="overline">
@@ -128,16 +128,16 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
 
           {!enabled && (
             <p className="lb-note">
-              The global leaderboard is warming up — coming online soon. Your scores are safe on
+              The global leaderboard is warming up - coming online soon. Your scores are safe on
               this device.
             </p>
           )}
           {enabled && board === undefined && <p className="lb-note">Loading the board…</p>}
           {enabled && board === null && (
-            <p className="lb-note">Couldn&apos;t load the board — check your connection.</p>
+            <p className="lb-note">Couldn&apos;t load the board - check your connection.</p>
           )}
           {enabled && board && board.rows.length === 0 && (
-            <p className="lb-note">No scores yet — be the first in the world!</p>
+            <p className="lb-note">No scores yet - be the first in the world!</p>
           )}
           {enabled && board && board.rows.length > 0 && (
               <>
@@ -176,7 +176,7 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
                 <li key={r.day} className="flex justify-between tx-muted">
                   <span>{r.day}</span>
                   <span className="font-semibold tx-ink tabular-nums">
-                    {r.won ? `${r.score.toLocaleString()} ${meta.unit}` : "—"}
+                    {r.won ? `${r.score.toLocaleString()} ${meta.unit}` : "-"}
                   </span>
                 </li>
               ))}
@@ -186,7 +186,7 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
 
         {records.length === 0 && (
           <p className="text-center text-sm tx-soft mt-2">
-            No games on this device yet — finish today&apos;s challenge and your story starts here.
+            No games on this device yet - finish today&apos;s challenge and your story starts here.
           </p>
         )}
       </div>

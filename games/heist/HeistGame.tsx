@@ -176,10 +176,19 @@ export default function HeistGame() {
       const path = pathRef.current;
       const head = path[path.length - 1];
       const dist = Math.abs(head.c - target.c) + Math.abs(head.r - target.r);
-      if (dist === 1) {
-        path.push(target);
-        syncPathState();
+      if (dist !== 1) return;
+      // each tile can be stepped on only once - no doubling back
+      if (path.some((p) => p.c === target.c && p.r === target.r)) return;
+      // the exit is a locked door until every gem is already on the route
+      if (target.c === lv.exit.c && target.r === lv.exit.r) {
+        const allGems = lv.gems.every((gm) => path.some((p) => p.c === gm.c && p.r === gm.r));
+        if (!allGems) {
+          blip(220, 0.08, "square", 0.05); // locked-door thunk
+          return;
+        }
       }
+      path.push(target);
+      syncPathState();
     };
 
     const onDown = (e: PointerEvent) => {
@@ -212,7 +221,7 @@ export default function HeistGame() {
     let raf = 0;
 
     const finishLevel = (gems: number) => {
-      // every escape now carries all gems — stars rate how few plans it took
+      // every escape now carries all gems - stars rate how few plans it took
       const stars = attemptsRef.current === 1 ? 3 : attemptsRef.current <= 3 ? 2 : 1;
       setLastStars(stars);
       setLastGems(gems);
@@ -261,7 +270,7 @@ export default function HeistGame() {
           run.t += 1;
           const t = run.t;
           if (t >= path.length) {
-            // path exhausted — we're standing on the exit (GO required it)
+            // path exhausted - we're standing on the exit (GO required it)
             finishLevel(run.collected.size);
           } else {
             const oldPos = path[t - 1];
@@ -391,7 +400,7 @@ export default function HeistGame() {
         ctx.stroke();
       });
 
-      // characters are drawn as emoji — instantly readable, no legend needed;
+      // characters are drawn as emoji - instantly readable, no legend needed;
       // counter-rotated so they stay upright when the board rotates on phones
       const glyph = (txt: string, x: number, y: number, size: number, alpha = 1) => {
         ctx.save();
@@ -561,8 +570,8 @@ export default function HeistGame() {
         </button>
       </div>
       <p className="hint">
-        you are 🥷 · grab <b>every</b> 🔶 then reach the EXIT — the vault stays locked otherwise ·
-        faint 👮 = where guards will be at your plan&apos;s last step ·{" "}
+        you are 🥷 · grab <b>every</b> 🔶 then reach the EXIT · each tile only <b>once</b>, no
+        doubling back · faint 👮 = where guards will be at your plan&apos;s last step ·{" "}
         {mode === "daily" ? (
           <button onClick={startEndless}>endless mode →</button>
         ) : (
@@ -589,11 +598,11 @@ export default function HeistGame() {
             <h2 className="font-serif text-2xl font-bold tx-ink mb-4 text-center">How to play</h2>
             <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
-                <span className="tx-ink font-semibold">1. You are the ninja 🥷 — plan the whole robbery first.</span>{" "}
-                Drag (or tap cell by cell) from your 🥷 to the EXIT — through the gems 🔶 if you dare.
+                <span className="tx-ink font-semibold">1. You are the ninja 🥷 - plan the whole robbery first.</span>{" "}
+                Drag (or tap cell by cell) from your 🥷 to the EXIT - through the gems 🔶 if you dare.
               </li>
               <li>
-                <span className="tx-ink font-semibold">2. Guards 👮 patrol the dotted loops</span> —
+                <span className="tx-ink font-semibold">2. Guards 👮 patrol the dotted loops</span> -
                 one step for every step you take. The{" "}
                 <span className="tx-ink font-semibold">dashed ghost</span> shows where each guard
                 will be at your plan&apos;s final step. Tap your path&apos;s head to undo.
@@ -604,8 +613,9 @@ export default function HeistGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">4. The vault is locked.</span> Your route
-                must collect <b>every gem</b> before the exit opens — plan the full loop past the
-                patrols. Fewest plans = the perfect crime.
+                must collect <b>every gem</b> before the exit opens, and{" "}
+                <b>each tile can be stepped on only once</b> - no doubling back to wait out
+                guards. Fewest plans = the perfect crime.
               </li>
             </ol>
             <button
@@ -617,7 +627,7 @@ export default function HeistGame() {
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
             >
-              Got it — case the joint
+              Got it - case the joint
             </button>
           </div>
         </div>
@@ -629,10 +639,10 @@ export default function HeistGame() {
           stars={lastStars}
           score={{ label: "gems secured", value: lastGems }}
           badges={[
-            `${dayStats[levelIdx]?.attempts || 1} plan${(dayStats[levelIdx]?.attempts || 1) === 1 ? " — first try ✓" : "s"}`,
+            `${dayStats[levelIdx]?.attempts || 1} plan${(dayStats[levelIdx]?.attempts || 1) === 1 ? " - first try ✓" : "s"}`,
             lastGems >= cfg.gems ? "Every gem 💎" : `${lastGems}/${cfg.gems} gems`,
           ]}
-          primary={{ label: `Museum ${levelIdx + 2} — more guards →`, onClick: () => startLevel(levelIdx + 1) }}
+          primary={{ label: `Museum ${levelIdx + 2} - more guards →`, onClick: () => startLevel(levelIdx + 1) }}
           footnote="Same museums for everyone today."
         />
       )}
@@ -666,8 +676,8 @@ export default function HeistGame() {
           pill={{ label: "Keep going ∞", onClick: startEndless }}
           footnote={
             endlessBest > 0
-              ? `Your endless best: ${endlessBest} museums — beat it?`
-              : "Endless museums keep growing — how deep can you go?"
+              ? `Your endless best: ${endlessBest} museums - beat it?`
+              : "Endless museums keep growing - how deep can you go?"
           }
           countdown
         />

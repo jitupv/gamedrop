@@ -28,9 +28,15 @@ type Status = "idle" | "aiming" | "flying" | "resetting" | "holeDone" | "courseD
 type Mode = "daily" | "endless";
 
 const START_FUEL = 8;
-// daily: hard fuel per hole — run dry and the hole is picked up as a bogey (+2)
+// daily: hard shot budget per hole - run dry and the hole is picked up as a bogey (+2)
 const DAILY_FUEL = [8, 9, 10];
 const BOGEY_PENALTY = 2;
+// aim pressure: the ring around the probe closes in this many seconds -
+// release before it shuts or the shot is spent. Generous on hole 1, tighter
+// each hole after; endless keeps squeezing as the run goes deeper.
+const AIM_TIMES = [5, 4, 3];
+const aimTimeFor = (mode: Mode, holeIdx: number) =>
+  mode === "endless" ? Math.max(2.5, 5 - holeIdx * 0.4) : AIM_TIMES[Math.min(holeIdx, AIM_TIMES.length - 1)];
 
 function readOrbitEndlessBest(): number {
   try {
@@ -74,7 +80,7 @@ export default function OrbitGame() {
   const fuelRef = useRef(START_FUEL);
   const clearedRef = useRef(0);
   const runSeedRef = useRef("");
-  // Mutable sim state lives in refs — the rAF loop reads these, React state is UI-only.
+  // Mutable sim state lives in refs - the rAF loop reads these, React state is UI-only.
   const courseRef = useRef<Hole[]>([]);
   const holeRef = useRef<Hole | null>(null);
   const probeRef = useRef<Probe>({ x: 0, y: 0, vx: 0, vy: 0 });
@@ -85,6 +91,7 @@ export default function OrbitGame() {
   const holeLaunchesRef = useRef(0);
   const starTakenRef = useRef(false);
   const aimRef = useRef<{ start: Vec; cur: Vec } | null>(null);
+  const aimStartRef = useRef(0);
   const dayRef = useRef("");
 
   const setStatusBoth = (s: Status) => {
@@ -154,7 +161,7 @@ export default function OrbitGame() {
     setNum(challengeNumber("orbit"));
     setStreak(getStreak("orbit", day));
 
-    // course generation runs the solver — defer a tick so the shell paints first
+    // course generation runs the solver - defer a tick so the shell paints first
     let cancelled = false;
     setLoading(true);
     window.setTimeout(() => {
@@ -185,9 +192,12 @@ export default function OrbitGame() {
 
     const onDown = (e: PointerEvent) => {
       if (statusRef.current !== "idle") return;
-      canvas.setPointerCapture(e.pointerId);
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {}
       const p = toGame(e);
       aimRef.current = { start: p, cur: p };
+      aimStartRef.current = performance.now();
       setStatusBoth("aiming");
     };
     const onMove = (e: PointerEvent) => {
@@ -210,7 +220,7 @@ export default function OrbitGame() {
         fuelRef.current -= 1;
         setFuel(fuelRef.current);
       } else if (holeLaunchesRef.current >= DAILY_FUEL[holeIdxRef.current]) {
-        // tank empty — golf pickup rule: bogey the hole, penalty on the card
+        // tank empty - golf pickup rule: bogey the hole, penalty on the card
         holeLaunchesRef.current += BOGEY_PENALTY;
         setHoleLaunches(holeLaunchesRef.current);
         chirp(320, 90, 0.4, "sawtooth", 0.07);
@@ -318,7 +328,7 @@ export default function OrbitGame() {
             probeRef.current = { x: holeRef.current.start.x, y: holeRef.current.start.y, vx: 0, vy: 0 };
             trailRef.current = [];
             if (modeRef.current === "endless" && fuelRef.current <= 0) {
-              // tank empty and the beacon unreached — the run is over
+              // tank empty and the beacon unreached - the run is over
               if (clearedRef.current > readOrbitEndlessBest()) {
                 try {
                   window.localStorage.setItem("gd:orbit:endless-best", String(clearedRef.current));
@@ -393,7 +403,7 @@ export default function OrbitGame() {
         ctx.stroke();
       }
 
-      // beacon — warm gold, matching the site accent
+      // beacon - warm gold, matching the site accent
       const pulse = 1 + Math.sin(tick * 0.08) * 0.25;
       ctx.strokeStyle = "rgba(232,194,104,0.95)";
       ctx.lineWidth = 2;
@@ -437,8 +447,50 @@ export default function OrbitGame() {
         ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
       }
 
-      // aim preview
+      // aim preview + the closing ring (release before it shuts or the shot is spent)
       if (statusRef.current === "aiming" && aimRef.current) {
+        const aimWindow = aimTimeFor(modeRef.current, holeIdxRef.current);
+        const frac = Math.max(0, 1 - (performance.now() - aimStartRef.current) / (aimWindow * 1000));
+        if (frac <= 0) {
+          // hesitated too long - the window closes and the chance is gone
+          aimRef.current = null;
+          blip(140, 0.25, "sawtooth", 0.08);
+          shakeRef.current = 6;
+          if (modeRef.current === "endless") {
+            fuelRef.current -= 1;
+            setFuel(fuelRef.current);
+            if (fuelRef.current <= 0) {
+              if (clearedRef.current > readOrbitEndlessBest()) {
+                try {
+                  window.localStorage.setItem("gd:orbit:endless-best", String(clearedRef.current));
+                  reportEndlessBest("orbit", clearedRef.current);
+                } catch {}
+                setEndlessBest(clearedRef.current);
+              }
+              setStatusBoth("runOver");
+            } else {
+              setStatusBoth("idle");
+            }
+          } else {
+            holeLaunchesRef.current += 1;
+            setHoleLaunches(holeLaunchesRef.current);
+            setStatusBoth("idle");
+          }
+          raf = requestAnimationFrame(draw);
+          return;
+        }
+        // shrinking ring around the probe: green when fresh, red when nearly shut
+        const ringR = 12 + frac * 44;
+        ctx.strokeStyle = `hsla(${Math.round(frac * 130)} 75% 55% / 0.9)`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(hole.start.x, hole.start.y, ringR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = `hsla(${Math.round(frac * 130)} 75% 55% / 0.22)`;
+        ctx.beginPath();
+        ctx.arc(hole.start.x, hole.start.y, ringR + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
         const { start, cur } = aimRef.current;
         const { vx, vy, power } = launchVelocity(start, cur);
         if (Math.hypot(vx, vy) >= 0.8) {
@@ -539,9 +591,9 @@ export default function OrbitGame() {
               <span className="val">{holeIdx + 1}/{HOLES}</span>
             </div>
             <div className="stat">
-              <span className="lab">Fuel</span>
+              <span className="lab">Shots left</span>
               <span className={`val${DAILY_FUEL[holeIdx] - holeLaunches <= 2 ? " warn" : ""}`}>
-                {Math.max(0, DAILY_FUEL[holeIdx] - holeLaunches)} ⛽
+                {Math.max(0, DAILY_FUEL[holeIdx] - holeLaunches)}
               </span>
             </div>
             <div className="stat">
@@ -586,8 +638,9 @@ export default function OrbitGame() {
         <canvas ref={canvasRef} className="board cursor-crosshair" />
       </div>
       <p className="hint shrink-0">
-        drag anywhere · release to launch · grab the ⭐ on the way · limited fuel per hole — run dry
-        and it&apos;s a bogey (+{BOGEY_PENALTY}) ·{" "}
+        drag anywhere · release <b>before the ring closes</b> or the shot is spent - it shrinks
+        faster every hole · grab the ⭐ on the way · limited shots per hole - run dry and it&apos;s a
+        bogey (+{BOGEY_PENALTY}) ·{" "}
         {mode === "daily" ? (
           <button onClick={startEndless}>endless mode →</button>
         ) : (
@@ -627,7 +680,7 @@ export default function OrbitGame() {
                   label: `Hole #${holeIdx + 2} →`,
                   onClick: () => loadHoleDirect(endlessHole(runSeedRef.current, holeIdx + 1), holeIdx + 1),
                 }
-              : { label: `Hole ${holeIdx + 2} — it gets harder →`, onClick: () => loadHole(holeIdx + 1) }
+              : { label: `Hole ${holeIdx + 2} - it gets harder →`, onClick: () => loadHole(holeIdx + 1) }
           }
           footnote={mode === "endless" ? "Denser systems ahead. Spend fuel wisely." : "Same course for everyone today."}
         />
@@ -656,8 +709,8 @@ export default function OrbitGame() {
           pill={{ label: "Keep going ∞", onClick: startEndless }}
           footnote={
             endlessBest > 0
-              ? `Your endless best: ${endlessBest} holes — beat it?`
-              : "Endless mode has no bottom — how far can you go?"
+              ? `Your endless best: ${endlessBest} holes - beat it?`
+              : "Endless mode has no bottom - how far can you go?"
           }
           countdown
         />

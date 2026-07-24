@@ -1,4 +1,4 @@
-// SONAR core: seeded maze generation. Pure logic — no DOM.
+// SONAR core: seeded maze generation. Pure logic - no DOM.
 import { hashSeed, mulberry32 } from "@/lib/sdk/rng";
 
 export interface Cell {

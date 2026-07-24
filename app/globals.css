@@ -17,7 +17,7 @@
   --accent: #a97a10;
 }
 
-/* dark mode is opt-in via the toggle (gd:theme) — light stays the default */
+/* dark mode is opt-in via the toggle (gd:theme) - light stays the default */
 :root[data-theme="dark"] {
   color-scheme: dark;
   --paper: #0e1014;
@@ -62,14 +62,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* legacy display class — every heading site-wide now sets Inter tight & heavy */
+/* legacy display class - every heading site-wide now sets Inter tight & heavy */
 .font-serif {
   font-family: inherit;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 
-/* token text utilities — replace fixed Tailwind grays so text flips with the theme */
+/* token text utilities - replace fixed Tailwind grays so text flips with the theme */
 .tx-ink { color: var(--ink); }
 .tx-muted { color: var(--muted); }
 .tx-soft { color: color-mix(in srgb, var(--muted) 65%, transparent); }
@@ -94,7 +94,7 @@ body {
   border: 1px solid rgba(28, 25, 23, 0.12);
   border-radius: 20px;
   box-shadow: 0 24px 64px -20px rgba(28, 25, 23, 0.35);
-  padding: 28px 26px; /* padding lives here, not in utility classes — guaranteed */
+  padding: 28px 26px; /* padding lives here, not in utility classes - guaranteed */
 }
 @media (min-width: 640px) {
   .panel {
@@ -132,17 +132,14 @@ body {
   background: rgba(28, 25, 23, 0.06);
 }
 
-/* phones: the board goes full-bleed — no side gaps, squared corners;
-   the stat bar sits flush on top of the game area */
+/* phones: a slim gutter around the board (page adds px-2) - the board keeps
+   soft corners and floats instead of slamming edge to edge */
 @media (max-width: 640px) {
   .board {
-    border-radius: 0;
+    border-radius: 12px;
   }
   div.stat-bar {
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    margin: 6px 0 0;
+    margin: 6px 0 8px;
   }
   .hint {
     margin-top: 8px;
@@ -216,7 +213,7 @@ body {
   color: var(--accent);
 }
 
-/* Daily ⇄ Endless segmented toggle — its own row above the stat bar */
+/* Daily ⇄ Endless segmented toggle - its own row above the stat bar */
 .mode-switch {
   display: flex;
   gap: 2px;
@@ -246,7 +243,7 @@ body {
   box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--ink) 45%, transparent);
 }
 
-/* 3:2 boards rotate 90° on portrait phones — height-driven sizing there */
+/* 3:2 boards rotate 90° on portrait phones - height-driven sizing there */
 @media (orientation: portrait) {
   .board-wide.board-flip {
     width: min(100%, 540px, calc((100dvh - 215px) * 0.6667));
@@ -304,7 +301,7 @@ body {
   backdrop-filter: blur(12px);
 }
 
-/* in-game header: same glass chrome as the homepage — flips with the theme */
+/* in-game header: same glass chrome as the homepage - flips with the theme */
 .game-header {
   background: color-mix(in srgb, var(--paper) 88%, transparent);
   -webkit-backdrop-filter: blur(10px);
@@ -464,7 +461,7 @@ body {
 
 /* ============ 100vh game screens ============ */
 
-/* game pages: a fixed frame pinned to the physical screen — immune to mobile
+/* game pages: a fixed frame pinned to the physical screen - immune to mobile
    URL-bar viewport games; the page itself can never scroll */
 .game-frame {
   position: fixed;
@@ -494,12 +491,12 @@ body {
 }
 
 /* ============ homepage (hm-*) ============ */
-/* fully theme-aware — the hero shares the page ground and flips with the toggle;
+/* fully theme-aware - the hero shares the page ground and flips with the toggle;
    the dark game-board artwork is the contrast piece.
    --gx = the game accent mixed toward ink, so accent text stays readable on both grounds */
 
 .hm {
-  --g: var(--accent); /* default — pages/cards override with their game color */
+  --g: var(--accent); /* default - pages/cards override with their game color */
   --gx: color-mix(in srgb, var(--g) 60%, var(--ink));
 }
 .hm-wrap {
@@ -676,6 +673,192 @@ body {
     0 36px 80px -30px color-mix(in srgb, var(--g) 45%, rgba(10, 12, 16, 0.5));
 }
 
+/* -- homepage live leaderboard (hb-*) - the "come beat them" wall -- */
+.hm-board { padding-block: 40px 0; }
+.hb-card {
+  position: relative;
+  background:
+    radial-gradient(560px 260px at 82% -10%, color-mix(in srgb, var(--g) 22%, transparent), transparent 70%),
+    #14161c;
+  color: #eef0f5;
+  border: 1px solid color-mix(in srgb, var(--g) 30%, transparent);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 30px 70px -32px color-mix(in srgb, var(--g) 55%, rgba(10, 12, 16, 0.6));
+}
+.hb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 20px 24px 0;
+}
+.hb-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--g);
+}
+.hb-live .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--g);
+  box-shadow: 0 0 10px var(--g);
+  animation: hb-blink 1.6s ease-in-out infinite;
+}
+@keyframes hb-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.hb-sub { font-size: 12.5px; color: rgba(238, 240, 245, 0.55); font-variant-numeric: tabular-nums; }
+
+.hb-podium {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  align-items: end;
+  padding: 20px 24px 4px;
+}
+.hb-step {
+  text-align: center;
+  border-radius: 16px;
+  background: rgba(238, 240, 245, 0.05);
+  border: 1px solid rgba(238, 240, 245, 0.08);
+  padding: 13px 8px 12px;
+  min-width: 0;
+}
+.hb-step .medal {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 8px;
+  background: rgba(238, 240, 245, 0.12);
+  color: #eef0f5;
+}
+.hb-step .h {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hb-step .s {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--g);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.hb-step.first {
+  padding: 20px 8px 16px;
+  background: color-mix(in srgb, var(--g) 14%, transparent);
+  border-color: color-mix(in srgb, var(--g) 45%, transparent);
+  animation: hb-champ 2.6s ease-in-out infinite;
+}
+.hb-step.first .medal {
+  background: linear-gradient(135deg, #ffe9a8, #e6c26b 60%, #b8923f);
+  color: #14161c;
+}
+.hb-step.second .medal { background: linear-gradient(135deg, #e8ecf3, #b9c0cc 60%, #8b93a1); color: #14161c; }
+.hb-step.third .medal { background: linear-gradient(135deg, #e8b98a, #c78b52 60%, #96602f); color: #14161c; }
+.hb-step.empty { border-style: dashed; opacity: 0.6; }
+.hb-step.empty .medal { background: transparent; border: 1px dashed rgba(238, 240, 245, 0.3); color: rgba(238, 240, 245, 0.4); }
+@keyframes hb-champ {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--g) 45%, transparent); }
+  50% { box-shadow: 0 0 24px 2px color-mix(in srgb, var(--g) 35%, transparent); }
+}
+
+.hb-rows {
+  padding: 10px 24px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.hb-rows li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  color: rgba(238, 240, 245, 0.7);
+}
+.hb-rows li .rk { width: 18px; font-weight: 800; color: rgba(238, 240, 245, 0.35); }
+.hb-rows li .h { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: #eef0f5; }
+.hb-rows li .s { font-weight: 800; }
+.hb-rows li.mine { background: color-mix(in srgb, var(--g) 16%, transparent); }
+
+.hb-empty {
+  text-align: center;
+  padding: 30px 22px 8px;
+  color: var(--g);
+}
+.hb-empty h3 {
+  margin-top: 10px;
+  font-size: clamp(18px, 3vw, 22px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #eef0f5;
+}
+.hb-empty p { margin-top: 4px; font-size: 13.5px; color: rgba(238, 240, 245, 0.6); }
+
+.hb-skel { padding: 26px 24px 8px; display: flex; flex-direction: column; gap: 10px; }
+.hb-skel i {
+  display: block;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(100deg, rgba(238, 240, 245, 0.05) 35%, rgba(238, 240, 245, 0.12) 50%, rgba(238, 240, 245, 0.05) 65%);
+  background-size: 300% 100%;
+  animation: hb-shimmer 1.4s linear infinite;
+}
+@keyframes hb-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+.hb-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 18px 24px 20px;
+}
+.hb-note { font-size: 12.5px; color: rgba(238, 240, 245, 0.5); }
+.hb-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--g);
+  color: #101218;
+  font-weight: 800;
+  font-size: 14px;
+  padding: 12px 24px;
+  border-radius: 9999px;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--g) 70%, transparent);
+}
+.hb-cta:hover { transform: translateY(-2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hb-live .dot, .hb-step.first, .hb-skel i { animation: none; }
+}
+@media (max-width: 560px) {
+  .hb-podium { padding-inline: 14px; gap: 7px; }
+  .hb-head, .hb-rows, .hb-foot { padding-inline: 16px; }
+}
+
 /* -- clarity strip -- */
 .hm-strip { border-bottom: 1px solid var(--line); }
 .hm-strip-inner {
@@ -836,7 +1019,7 @@ body {
   text-transform: uppercase;
   padding: 5px 11px;
   border-radius: 9999px;
-  /* sits on the (always dark) artwork — fixed dark chip in both themes */
+  /* sits on the (always dark) artwork - fixed dark chip in both themes */
   background: #14161c;
   color: #e6c26b;
   border: 1px solid rgba(230, 194, 107, 0.5);
@@ -922,7 +1105,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  /* floats over content in both themes — fixed dark pill, like the game chrome */
+  /* floats over content in both themes - fixed dark pill, like the game chrome */
   background: rgba(17, 19, 25, 0.96);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
@@ -954,7 +1137,7 @@ body {
 .art svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .art > i { position: absolute; display: block; }
 
-/* SONAR — pings in the dark */
+/* SONAR - pings in the dark */
 .art-sonar { background: #0b0d13; }
 .art-sonar .ping {
   left: 42%;
@@ -1011,7 +1194,7 @@ body {
   100% { opacity: 0; }
 }
 
-/* TILT — candy board */
+/* TILT - candy board */
 .art-tilt { background: #1e2027; display: grid; place-items: center; }
 .art-tilt .tiles {
   display: grid;
@@ -1032,7 +1215,7 @@ body {
 .art-tilt .c4 { background: #9d8cff; }
 .art-tilt .c5 { background: #f78fb3; }
 
-/* ORBIT — planets & trajectory */
+/* ORBIT - planets & trajectory */
 .art-orbit { background: radial-gradient(420px 240px at 70% 20%, #2a2440, #14111f 70%); }
 .art-orbit .p1 {
   width: 18%;
@@ -1052,7 +1235,7 @@ body {
   background: radial-gradient(circle at 32% 28%, #ffd9a8, #ffa23e 60%, #b86a1e);
 }
 
-/* HEIST — museum floor */
+/* HEIST - museum floor */
 .art-heist { background: #1b1e24; }
 .art-heist .floor {
   inset: 0;
@@ -1087,7 +1270,7 @@ body {
   background: #ff6f61;
 }
 
-/* RUSH — the intersection */
+/* RUSH - the intersection */
 .art-rush { background: #20242b; }
 .art-rush .road {
   top: 0;
@@ -1110,7 +1293,7 @@ body {
 .art-rush .c1 { background: linear-gradient(#ffc36b, #ffa23e); left: 36%; bottom: 14%; }
 .art-rush .c2 { background: linear-gradient(#8fd0ff, #6fa8ff); right: 36%; top: 12%; }
 
-/* TRACE — pencil on paper */
+/* TRACE - pencil on paper */
 .art-trace { background: #efe9db; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1119,7 +1302,7 @@ body {
   .art-sonar .exit { animation: none; }
 }
 
-/* ============ text pages (sp-*) — about / privacy / terms ============ */
+/* ============ text pages (sp-*) - about / privacy / terms ============ */
 
 .sp-main {
   max-width: 760px;
@@ -1215,6 +1398,26 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .metric .num .fa-mini { font-size: 13px; color: var(--accent); margin-left: 4px; }
+
+/* account modal inputs */
+.acct-row { display: flex; gap: 8px; align-items: stretch; }
+.acct-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 9px 14px;
+  font-size: 14px;
+  transition: border-color 0.15s ease;
+}
+.acct-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.acct-msg { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.acct-msg.ok { color: var(--accent); font-weight: 600; }
 
 /* global leaderboard (stats modal) */
 .lb {

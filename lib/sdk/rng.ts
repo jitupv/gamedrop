@@ -1,4 +1,4 @@
-// Deterministic RNG — every player gets the same daily level from the same seed.
+// Deterministic RNG - every player gets the same daily level from the same seed.
 
 export function hashSeed(str: string): number {
   let h = 1779033703 ^ str.length;

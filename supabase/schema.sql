@@ -2,7 +2,7 @@
 -- Paste this whole file into: Supabase Dashboard → SQL Editor → New query → Run
 --
 -- NOTE: this REPLACES the practice tables from the earlier lesson (profiles + scores).
--- v1 uses a single denormalized table — no joins needed to read a board; a separate
+-- v1 uses a single denormalized table - no joins needed to read a board; a separate
 -- profiles table returns later when players can rename themselves / claim accounts.
 -- Safe to run: your project has no live player data yet.
 drop table if exists public.scores cascade;

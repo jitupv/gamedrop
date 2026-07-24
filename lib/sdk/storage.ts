@@ -24,7 +24,7 @@ function write(key: string, value: unknown): void {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // storage full/blocked — play on without persistence
+    // storage full/blocked - play on without persistence
   }
 }
 

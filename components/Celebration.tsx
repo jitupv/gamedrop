@@ -27,7 +27,7 @@ export default function Celebration({
 }: {
   title: string;
   subtitle?: string;
-  stars: number; // 0–3 earned
+  stars: number; // 0-3 earned
   score?: { label: string; value: number; decimals?: number; suffix?: string };
   badges?: string[];
   primary: Action;

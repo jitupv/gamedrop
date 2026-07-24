@@ -59,7 +59,7 @@ export function rectsOverlap(
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-// seeded spawn stream — same traffic for everyone today
+// seeded spawn stream - same traffic for everyone today
 export function makeSpawner(dayKey: string) {
   const rng = mulberry32(hashSeed(`rush:${dayKey}`));
   return {
