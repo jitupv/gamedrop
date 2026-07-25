@@ -9,6 +9,7 @@ import Celebration from "@/components/Celebration";
 import { challengeNumber, todayKey } from "@/lib/sdk/daily";
 import ModeSwitch from "@/components/ModeSwitch";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import GuideLink from "@/components/GuideLink";
 import { reportEndlessBest } from "@/lib/sdk/leaderboard";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
@@ -445,6 +446,7 @@ export default function TraceGame() {
             >
               Got it - sharpen the pencil
             </button>
+            <GuideLink game="trace" />
           </div>
         </div>
       )}

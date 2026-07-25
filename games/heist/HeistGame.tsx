@@ -8,6 +8,7 @@ import { Cell, HeistCfg, HeistLevel, LEVELS, caughtAt, endlessCfg, genLevel, gen
 import { challengeNumber, todayKey } from "@/lib/sdk/daily";
 import ModeSwitch from "@/components/ModeSwitch";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import GuideLink from "@/components/GuideLink";
 import { reportEndlessBest } from "@/lib/sdk/leaderboard";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
@@ -629,6 +630,7 @@ export default function HeistGame() {
             >
               Got it - case the joint
             </button>
+            <GuideLink game="heist" />
           </div>
         </div>
       )}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
 import {
   BEACON_R,
   H,
@@ -17,6 +19,7 @@ import {
 } from "./engine";
 import { challengeNumber, todayKey } from "@/lib/sdk/daily";
 import ModeSwitch from "@/components/ModeSwitch";
+import GuideLink from "@/components/GuideLink";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import { reportEndlessBest } from "@/lib/sdk/leaderboard";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
@@ -34,9 +37,9 @@ const BOGEY_PENALTY = 2;
 // aim pressure: the ring around the probe closes in this many seconds -
 // release before it shuts or the shot is spent. Generous on hole 1, tighter
 // each hole after; endless keeps squeezing as the run goes deeper.
-const AIM_TIMES = [5, 4, 3];
+const AIM_TIMES = [10, 8, 6];
 const aimTimeFor = (mode: Mode, holeIdx: number) =>
-  mode === "endless" ? Math.max(2.5, 5 - holeIdx * 0.4) : AIM_TIMES[Math.min(holeIdx, AIM_TIMES.length - 1)];
+  mode === "endless" ? Math.max(4, 10 - holeIdx * 0.5) : AIM_TIMES[Math.min(holeIdx, AIM_TIMES.length - 1)];
 
 function readOrbitEndlessBest(): number {
   try {
@@ -68,6 +71,7 @@ export default function OrbitGame() {
   const [streak, setStreak] = useState(0);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
   const [mode, setMode] = useState<Mode>("daily");
   const [fuel, setFuel] = useState(START_FUEL);
   const [cleared, setCleared] = useState(0);
@@ -160,6 +164,7 @@ export default function OrbitGame() {
     dayRef.current = day;
     setNum(challengeNumber("orbit"));
     setStreak(getStreak("orbit", day));
+    if (!window.localStorage.getItem("gd:orbit:help")) setShowHelp(true);
 
     // course generation runs the solver - defer a tick so the shell paints first
     let cancelled = false;
@@ -646,11 +651,63 @@ export default function OrbitGame() {
         ) : (
           <button onClick={backToDaily}>← back to daily</button>
         )}
+        {" · "}
+        <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/60">
           <p className="text-slate-300 animate-pulse">Charting today&apos;s systems…</p>
+        </div>
+      )}
+
+      {showHelp && (
+        <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
+          <div className="panel max-w-sm max-h-full overflow-y-auto">
+            <button
+              className="panel-x"
+              aria-label="Close"
+              onClick={() => {
+                setShowHelp(false);
+                try {
+                  window.localStorage.setItem("gd:orbit:help", "1");
+                } catch {}
+              }}
+            >
+              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
+            </button>
+            <h2 className="font-serif text-2xl font-bold tx-ink mb-4 text-center">How to play</h2>
+            <ol className="space-y-3 tx-muted text-sm leading-relaxed">
+              <li>
+                <span className="tx-ink font-semibold">1. Drag anywhere and release</span> to launch
+                your probe toward the golden beacon.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">2. Gravity curves your shot.</span> Planets
+                pull the probe, so sling around them - a straight line never reaches the beacon.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">3. Release before the ring closes,</span> or
+                the shot is spent. You get limited launches per hole, so aim deliberately.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">4. Three holes a day.</span> Grab the star on
+                the way for a bonus. Fewest total launches wins the bragging rights.
+              </li>
+            </ol>
+            <button
+              onClick={() => {
+                setShowHelp(false);
+                try {
+                  window.localStorage.setItem("gd:orbit:help", "1");
+                } catch {}
+              }}
+              className="btn-ink mt-5 w-full px-5 py-2.5"
+            >
+              Got it - to the launchpad
+            </button>
+            <GuideLink game="orbit" />
+          </div>
         </div>
       )}
 

@@ -20,6 +20,7 @@ import {
 import { challengeNumber, todayKey } from "@/lib/sdk/daily";
 import ModeSwitch from "@/components/ModeSwitch";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import GuideLink from "@/components/GuideLink";
 import { reportEndlessBest } from "@/lib/sdk/leaderboard";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { isMuted } from "@/lib/sdk/sound";
@@ -776,6 +777,7 @@ export default function TiltGame() {
             >
               Got it - let&apos;s play
             </button>
+            <GuideLink game="tilt" />
           </div>
         </div>
       )}

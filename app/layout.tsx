@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { config } from "@fortawesome/fontawesome-svg-core";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 import Analytics from "@/components/Analytics";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 // FA CSS is imported above once - stop the runtime from injecting it (avoids icon flash)
@@ -14,30 +15,30 @@ const inter = Inter({
   display: "swap",
 });
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://gamedrop-ten.vercel.app";
-
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4efe6" },
-    { media: "(prefers-color-scheme: dark)", color: "#16120d" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f5f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e1014" },
   ],
 };
+
+const DESC =
+  "A brand-new game every Friday, each with a fresh daily challenge and an endless mode. Free to play, no download.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "GAMEDROP - a brand-new game every Friday",
-  description:
-    "Six original games. A fresh daily challenge in every one. Play today's free.",
+  description: DESC,
   openGraph: {
     title: "GAMEDROP - a brand-new game every Friday",
-    description: "Six original games. A fresh daily challenge in every one. Play today's free.",
+    description: DESC,
     siteName: "GAMEDROP",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "GAMEDROP - a brand-new game every Friday",
-    description: "Six original games. A fresh daily challenge in every one. Play today's free.",
+    description: DESC,
   },
 };
 

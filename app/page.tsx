@@ -10,6 +10,7 @@ import {
   faCircleUser,
   faFire,
   faHourglassHalf,
+  faRankingStar,
   faStar,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
@@ -90,6 +91,7 @@ export default function Home() {
   const [friday, setFriday] = useState("-");
   const [stickyHidden, setStickyHidden] = useState(true);
   const [showAccount, setShowAccount] = useState(false);
+  const [showBoard, setShowBoard] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const ctaRef = useRef<HTMLAnchorElement>(null);
 
@@ -152,7 +154,9 @@ export default function Home() {
             GAMEDROP<span>.</span>
           </Link>
           <nav className="hm-nav">
-            <a href="#board">Leaderboard</a>
+            <button type="button" className="hm-navbtn" onClick={() => setShowBoard(true)}>
+              Leaderboard
+            </button>
             <a href="#vault">The Vault</a>
             <button
               type="button"
@@ -181,9 +185,15 @@ export default function Home() {
         </div>
         {menuOpen && (
           <div className="hm-menu hm-wrap">
-            <a href="#board" onClick={() => setMenuOpen(false)}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowBoard(true);
+                setMenuOpen(false);
+              }}
+            >
               Leaderboard
-            </a>
+            </button>
             <a href="#vault" onClick={() => setMenuOpen(false)}>
               The Vault
             </a>
@@ -234,12 +244,17 @@ export default function Home() {
             </div>
 
             <div className="hm-cta">
-              <Link ref={ctaRef} href={today.path} className="hm-play">
-                Play today&apos;s challenge{" "}
-                <span className="arr">
-                  <FontAwesomeIcon icon={faArrowRight} width={15} height={15} />
-                </span>
-              </Link>
+              <div className="hm-cta-row">
+                <Link ref={ctaRef} href={today.path} className="hm-play">
+                  Play today&apos;s challenge{" "}
+                  <span className="arr">
+                    <FontAwesomeIcon icon={faArrowRight} width={15} height={15} />
+                  </span>
+                </Link>
+                <button type="button" className="hm-boardbtn" onClick={() => setShowBoard(true)}>
+                  <FontAwesomeIcon icon={faRankingStar} width={15} height={15} /> Leaderboard
+                </button>
+              </div>
               <p className="hm-meta">
                 Challenge <b>{chNum}</b> - same puzzle for everyone · fresh puzzle at midnight{" "}
                 <b className="hm-count">{midnight}</b>
@@ -252,6 +267,9 @@ export default function Home() {
                   - today&apos;s challenge keeps it alive.
                 </p>
               )}
+              <Link href={`${today.path}/how-to-play`} className="hm-guidelink">
+                New here? How to play {today.name}
+              </Link>
             </div>
           </div>
 
@@ -260,8 +278,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      <HomeBoard game={today} accent={meta.accent} />
 
       <section className="hm-strip">
         <div className="hm-wrap hm-strip-inner">
@@ -312,6 +328,7 @@ export default function Home() {
         </div>
 
         <div className="hm-grid">
+          {/* each vault card links straight to its game */}
           {[today, ...vault].map((g) => {
             const m = HOME[g.id];
             const isFeatured = g.id === todayId;
@@ -344,7 +361,7 @@ export default function Home() {
                   </div>
                   <p className="hm-desc">{m.desc}</p>
                   <div className="hm-gmeta">
-                    <span>
+                    <span className="hm-gstat">
                       <span className="hm-dots">
                         {[1, 2, 3].map((d) => (
                           <i key={d} className={d <= m.diff ? "on" : ""} />
@@ -379,6 +396,9 @@ export default function Home() {
       </footer>
 
       {showAccount && <AccountModal onClose={() => setShowAccount(false)} />}
+      {showBoard && (
+        <HomeBoard game={today} accent={meta.accent} onClose={() => setShowBoard(false)} />
+      )}
 
       <div className={`hm-sticky ${stickyHidden ? "is-off" : ""}`}>
         <div className="hm-sticky-inner">

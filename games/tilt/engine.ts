@@ -30,9 +30,9 @@ export interface LevelConfig {
 }
 
 export const LEVELS: LevelConfig[] = [
-  { colors: 4, target: 1000, moves: 14 },
-  { colors: 4, target: 1600, moves: 13 },
-  { colors: 5, target: 2400, moves: 12 },
+  { colors: 4, target: 500, moves: 20 },
+  { colors: 4, target: 700, moves: 17 },
+  { colors: 5, target: 800, moves: 14 },
 ];
 
 export interface TiltState {

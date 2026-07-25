@@ -27,6 +27,7 @@ import {
 } from "./engine";
 import { challengeNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import GuideLink from "@/components/GuideLink";
 import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { applyView, inScreenSpace } from "@/lib/sdk/viewport";
@@ -381,6 +382,7 @@ export default function RushGame() {
             >
               Got it - open the road
             </button>
+            <GuideLink game="rush" />
           </div>
         </div>
       )}

@@ -374,6 +374,30 @@ body {
 .hint button:hover {
   color: var(--ink);
 }
+.hint a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.hint a:hover {
+  color: var(--ink);
+}
+
+/* link from an in-game help overlay to the full how-to-play guide */
+.help-guidelink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--muted) 40%, transparent);
+}
+.help-guidelink:hover {
+  color: var(--ink);
+}
 
 /* ============ celebration layer ============ */
 
@@ -602,6 +626,14 @@ body {
   transition: color 0.15s ease;
 }
 .hm-nav a:hover { color: var(--ink); }
+.hm-navbtn {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: color 0.15s ease;
+}
+.hm-navbtn:hover { color: var(--ink); }
 .hm-streak {
   display: inline-flex;
   align-items: center;
@@ -700,6 +732,31 @@ body {
   align-items: flex-start;
   gap: 12px;
 }
+.hm-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.hm-boardbtn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--ink) 24%, transparent);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  padding: 14px 22px;
+  border-radius: 9999px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.hm-boardbtn:hover {
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border-color: color-mix(in srgb, var(--ink) 40%, transparent);
+  transform: translateY(-2px);
+}
 .hm-play {
   display: inline-flex;
   align-items: center;
@@ -771,6 +828,36 @@ body {
   from { background-position: 130% 0; }
   to { background-position: -130% 0; }
 }
+/* leaderboard shown as a modal (opened from the hero button) */
+.hb-modal {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+}
+.hb-modal .hb-card { max-height: 88dvh; overflow-y: auto; }
+.hb-modal .hb-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding-right: 44px;
+}
+.hb-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  background: rgba(238, 240, 245, 0.12);
+  color: #eef0f5;
+  border: 1px solid rgba(238, 240, 245, 0.2);
+  transition: background 0.15s ease;
+}
+.hb-close:hover { background: rgba(238, 240, 245, 0.24); }
+
 .hb-head {
   display: flex;
   align-items: center;
@@ -1189,6 +1276,23 @@ body {
   color: color-mix(in srgb, var(--g) 60%, var(--ink));
 }
 
+/* -- mobile: lighter hero, leaderboard opens in a modal, less scrolling -- */
+@media (max-width: 640px) {
+  /* the explanatory fact strip is desktop-only detail; drop it on phones */
+  .hm-strip { display: none; }
+  /* tighten the hero so games come sooner */
+  .hm-hero-grid { padding-block: 24px 28px; gap: 20px; }
+  .hm-scene { max-width: 340px; }
+  .hm-cta { margin-top: 20px; }
+  /* stack the two CTAs full-width so neither button ever wraps mid-word */
+  .hm-cta-row { flex-direction: column; align-items: stretch; width: 100%; }
+  .hm-play,
+  .hm-boardbtn { width: 100%; justify-content: center; }
+  /* compact next-drop teaser */
+  .hm-next { padding-block: 26px 0; }
+  .hm-next-body { padding: 18px 18px; }
+}
+
 /* -- footer -- */
 .hm-foot { border-top: 1px solid var(--line); padding-block: 32px 108px; }
 .hm-foot-inner {
@@ -1226,14 +1330,12 @@ body {
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   color: #eef0f5;
-  border: 1px solid rgba(238, 240, 245, 0.12);
   border-radius: 9999px;
   padding: 8px 8px 8px 20px;
-  /* layered drop shadow so the pill floats clearly on dark grounds too */
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.35),
-    0 16px 40px rgba(0, 0, 0, 0.45),
-    0 30px 70px -12px rgba(0, 0, 0, 0.7);
+  /* no drop shadow - a crisp hairline border + inner top highlight makes the
+     pill read as a premium glass capsule and stand out on light or dark grounds */
+  border: 1px solid rgba(238, 240, 245, 0.3);
+  box-shadow: inset 0 1px 0 rgba(238, 240, 245, 0.12);
 }
 .hm-sticky .s-info { display: flex; flex-direction: column; line-height: 1.25; }
 .hm-sticky .s-name { font-weight: 700; font-size: 14px; }
@@ -1493,6 +1595,120 @@ body {
 }
 .sp-foot nav { display: flex; gap: 16px; }
 .sp-foot a { font-weight: 600; color: var(--ink); }
+
+/* how-to-play guide pages (hg-*) */
+.hg .sp-lede { margin-bottom: 4px; }
+.hg-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 20px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  padding: 12px 24px;
+  border-radius: 9999px;
+  transition: transform 0.16s ease;
+}
+.hg-play:hover { transform: translateY(-2px); }
+.hg-section { margin-top: 34px; }
+.hg-section h2 {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin-bottom: 14px;
+}
+.hg-steps { display: flex; flex-direction: column; gap: 12px; }
+.hg-steps li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.hg-steps li .n {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 1px;
+}
+.hg-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+}
+.hg-tips li {
+  position: relative;
+  padding-left: 22px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.hg-tips li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.hg-faq { display: flex; flex-direction: column; gap: 16px; }
+.hg-qa h3 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.hg-qa p { font-size: 14px; line-height: 1.6; color: var(--muted); }
+.hg-more {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 560px) { .hg-more { grid-template-columns: 1fr 1fr; } }
+.hg-morelink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.hg-morelink:hover {
+  border-color: color-mix(in srgb, var(--ink) 25%, transparent);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+.hg-morelink .nm { font-weight: 800; letter-spacing: -0.01em; color: var(--ink); }
+.hg-morelink .gn { font-size: 12.5px; color: var(--muted); }
+
+/* subtle "how to play" link on the homepage hero */
+.hm-guidelink {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--muted) 40%, transparent);
+}
+.hm-guidelink:hover { color: var(--ink); }
 
 /* stat metric cells (stats modal) */
 .metric {
