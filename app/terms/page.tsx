@@ -1,4 +1,5 @@
 import SimplePage from "@/components/SimplePage";
+import { SITE_EMAIL } from "@/lib/site";
 
 export const metadata = { title: "Terms - JEETLE" };
 
@@ -27,6 +28,11 @@ export default function Terms() {
       <p>
         Games, features, and these terms may change as the product evolves. Continued use after
         changes means you accept the updated terms.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions about these terms? Email <a href={`mailto:${SITE_EMAIL}`}>{SITE_EMAIL}</a>.
       </p>
     </SimplePage>
   );

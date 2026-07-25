@@ -1102,6 +1102,9 @@ body {
 }
 @media (min-width: 760px) {
   .hm-next-card { grid-template-columns: 1.15fr 0.85fr; }
+  /* a card with no art panel (the vote card) must span both columns, or its
+     content is squeezed into 57% width and buttons wrap for no reason */
+  .hm-next-body:only-child { grid-column: 1 / -1; }
 }
 .hm-next-body {
   padding: 26px 28px;
@@ -1142,6 +1145,14 @@ body {
   padding: 8px 16px;
   border-radius: 9999px;
 }
+/* vote options: stacked on phones, one row once there is room */
+.hm-votes { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; width: 100%; }
+.hm-votes .btn-line { justify-content: flex-start; gap: 6px; }
+@media (min-width: 760px) {
+  .hm-votes { flex-direction: row; flex-wrap: nowrap; }
+  .hm-votes .btn-line { flex: 1 1 0; min-width: 0; justify-content: center; }
+}
+
 .hm-next-art {
   position: relative;
   min-height: 170px;
@@ -1325,7 +1336,12 @@ body {
 }
 
 /* -- footer -- */
-.hm-foot { border-top: 1px solid var(--line); padding-block: 32px 108px; }
+/* 108px of bottom room is only needed where the mobile sticky play bar floats
+   (<=880px). On desktop that reserved space just reads as a dead gap. */
+.hm-foot { border-top: 1px solid var(--line); margin-top: 48px; padding-block: 32px; }
+@media (max-width: 880px) {
+  .hm-foot { padding-bottom: 108px; }
+}
 .hm-foot-inner {
   display: flex;
   flex-wrap: wrap;

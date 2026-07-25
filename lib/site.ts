@@ -11,6 +11,9 @@ export const SITE_NAME = "JEETLE";
 // jeetle.games is bought and pointed at the project.
 export const SITE_DOMAIN = "jeetle.games";
 
+// Public contact address, shown in the footer and on the text pages.
+export const SITE_EMAIL = "contact@jeetle.games";
+
 // The one-line promise. The daily challenge is what the code guarantees
 // forever, so the tagline leans on that rather than on a release cadence.
 export const SITE_TAGLINE = "a fresh challenge every midnight";

@@ -1,4 +1,5 @@
 import SimplePage from "@/components/SimplePage";
+import { SITE_EMAIL } from "@/lib/site";
 
 export const metadata = { title: "Privacy - JEETLE" };
 
@@ -37,7 +38,10 @@ export default function Privacy() {
         daily games.
       </p>
       <h2>Contact</h2>
-      <p>Questions? Reach us via the contact details on the About page.</p>
+      <p>
+        Questions, or want your data removed? Email{" "}
+        <a href={`mailto:${SITE_EMAIL}`}>{SITE_EMAIL}</a>.
+      </p>
     </SimplePage>
   );
 }

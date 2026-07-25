@@ -47,7 +47,7 @@ export default function VoteCard() {
           ) : (
             <p>One tap. The winner joins the build queue.</p>
           )}
-          <div className="hm-cta-row" style={{ marginTop: 12, flexWrap: "wrap", gap: 8 }}>
+          <div className="hm-votes">
             {OPTIONS.map((o) => (
               <button
                 key={o.id}

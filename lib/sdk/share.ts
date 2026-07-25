@@ -31,7 +31,125 @@ export interface ShareCard {
   streak?: number;
 }
 
-// 1080×1080 share card: dark card, game-colored glow, giant emoji watermark,
+// Per-game vector watermark. Drawn with paths, not emoji, because emoji in canvas
+// depend on the platform's emoji font: the same card rendered on Android and on
+// Apple produced a visible mark and a missing one. Vectors look identical
+// everywhere, survive WhatsApp's JPEG compression, and each game gets its own
+// silhouette instead of every card sharing one generic background.
+const WATERMARK_ALPHA = 0.13;
+
+function drawWatermark(
+  ctx: CanvasRenderingContext2D,
+  game: string,
+  cx: number,
+  cy: number,
+  s: number, // overall size of the mark
+  color: string
+): boolean {
+  ctx.save();
+  ctx.globalAlpha = WATERMARK_ALPHA;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  let drawn = true;
+
+  switch (game) {
+    case "tilt": {
+      // a 3x3 slab of tiles - the board you swipe
+      const n = 3;
+      const gap = s * 0.07;
+      const t = (s - gap * (n - 1)) / n;
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          ctx.beginPath();
+          ctx.roundRect(cx - s / 2 + c * (t + gap), cy - s / 2 + r * (t + gap), t, t, t * 0.24);
+          ctx.fill();
+        }
+      }
+      break;
+    }
+    case "orbit": {
+      // a planet with its orbital path and a probe on the arc
+      ctx.lineWidth = s * 0.04;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, s * 0.48, s * 0.21, -0.55, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.19, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx + s * 0.34, cy - s * 0.3, s * 0.045, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case "sonar": {
+      // ping rings radiating from the blind dot
+      ctx.lineWidth = s * 0.038;
+      for (const r of [0.5, 0.35, 0.2]) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, s * r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(cx, cy, s * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case "heist": {
+      // the gem you have to collect, with facet lines
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - s * 0.44);
+      ctx.lineTo(cx + s * 0.4, cy - s * 0.08);
+      ctx.lineTo(cx, cy + s * 0.46);
+      ctx.lineTo(cx - s * 0.4, cy - s * 0.08);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = WATERMARK_ALPHA * 1.7;
+      ctx.lineWidth = s * 0.022;
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.4, cy - s * 0.08);
+      ctx.lineTo(cx + s * 0.4, cy - s * 0.08);
+      ctx.moveTo(cx, cy - s * 0.44);
+      ctx.lineTo(cx - s * 0.17, cy - s * 0.08);
+      ctx.moveTo(cx, cy - s * 0.44);
+      ctx.lineTo(cx + s * 0.17, cy - s * 0.08);
+      ctx.stroke();
+      break;
+    }
+    case "rush": {
+      // the traffic light you control
+      const w = s * 0.5;
+      ctx.lineWidth = s * 0.035;
+      ctx.beginPath();
+      ctx.roundRect(cx - w / 2, cy - s / 2, w, s, w * 0.44);
+      ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(cx, cy - s * 0.29 + i * s * 0.29, w * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case "trace": {
+      // one continuous stroke, the way the game is played
+      ctx.lineWidth = s * 0.08;
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.42, cy + s * 0.3);
+      ctx.bezierCurveTo(cx - s * 0.32, cy - s * 0.46, cx + s * 0.3, cy - s * 0.44, cx + s * 0.34, cy - s * 0.02);
+      ctx.bezierCurveTo(cx + s * 0.38, cy + s * 0.36, cx - s * 0.04, cy + s * 0.42, cx - s * 0.14, cy + s * 0.12);
+      ctx.stroke();
+      break;
+    }
+    default:
+      drawn = false;
+  }
+
+  ctx.restore();
+  return drawn;
+}
+
+// 1080×1080 share card: dark card, game-colored glow, per-game vector watermark,
 // brand + challenge number, big stat, emoji grid, domain footer
 async function renderCard(card: ShareCard): Promise<Blob | null> {
   try {
@@ -60,14 +178,17 @@ async function renderCard(card: ShareCard): Promise<Blob | null> {
     glow2.addColorStop(1, "transparent");
     ctx.fillStyle = glow2;
     ctx.fillRect(0, 0, S, S);
-    // giant emoji watermark
-    ctx.save();
-    ctx.globalAlpha = 0.08;
-    ctx.font = `520px ${fam}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(card.emoji, 790, 820);
-    ctx.restore();
+    // per-game vector watermark, bottom right; emoji only as a last resort for a
+    // game that has no mark drawn yet
+    if (!drawWatermark(ctx, card.game.toLowerCase(), 800, 760, 440, card.accent)) {
+      ctx.save();
+      ctx.globalAlpha = WATERMARK_ALPHA;
+      ctx.font = `440px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",${fam}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(card.emoji, 800, 760);
+      ctx.restore();
+    }
 
     ctx.textAlign = "left";
     ctx.textBaseline = "alphabetic";
@@ -128,7 +249,16 @@ async function renderCard(card: ShareCard): Promise<Blob | null> {
 // mobile: native share sheet with the stat-card IMAGE + text (link included);
 // desktop: image to clipboard; final fallback: plain text
 export async function shareResult(text: string, card?: ShareCard): Promise<ShareOutcome> {
-  track("share_clicked", { game: text.split("\n")[0]?.split(" ")[0]?.toLowerCase() });
+  const game = text.split("\n")[0]?.split(" ")[0]?.toLowerCase();
+  track("share_clicked", { game });
+
+  // report HOW the share went, not just that it was clicked - an image share and a
+  // text-only fallback are very different for growth, and we could not tell them
+  // apart before.
+  const done = (outcome: ShareOutcome, method: string): ShareOutcome => {
+    track("share_done", { game, outcome, method, withImage: method.startsWith("image") });
+    return outcome;
+  };
 
   if (card) {
     const blob = await renderCard(card);
@@ -140,7 +270,7 @@ export async function shareResult(text: string, card?: ShareCard): Promise<Share
       if (typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
         try {
           await navigator.share({ files: [file], text });
-          return "shared";
+          return done("shared", "image-native");
         } catch {
           // user closed the sheet - fall through
         }
@@ -154,7 +284,7 @@ export async function shareResult(text: string, card?: ShareCard): Promise<Share
         } catch {
           await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         }
-        return "copied";
+        return done("copied", "image-clipboard");
       } catch {
         // clipboard image not allowed - fall through to text
       }
@@ -164,16 +294,16 @@ export async function shareResult(text: string, card?: ShareCard): Promise<Share
   if (typeof navigator !== "undefined" && navigator.share) {
     try {
       await navigator.share({ text });
-      return "shared";
+      return done("shared", "text-native");
     } catch {
       // user closed the sheet - fall through to clipboard
     }
   }
   try {
     await navigator.clipboard.writeText(text);
-    return "copied";
+    return done("copied", "text-clipboard");
   } catch {
-    return "failed";
+    return done("failed", "none");
   }
 }
 

@@ -1,6 +1,7 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCalendarDay, faEarthAsia, faInfinity, faShieldHalved } from "@fortawesome/free-solid-svg-icons";
 import SimplePage from "@/components/SimplePage";
+import { SITE_EMAIL } from "@/lib/site";
 
 export const metadata = { title: "About - JEETLE" };
 
@@ -51,6 +52,10 @@ export default function About() {
       <p>
         Beat today&apos;s challenge, share your result, and dare your friends to do better - every
         share link carries your score as a challenge.
+      </p>
+      <p>
+        Found a bug, or have an idea for a game? Write to us at{" "}
+        <a href={`mailto:${SITE_EMAIL}`}>{SITE_EMAIL}</a> - we read everything.
       </p>
       <p>Made with ☕ &amp; 🍬 - fresh challenges every midnight.</p>
     </SimplePage>

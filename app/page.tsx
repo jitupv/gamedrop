@@ -20,7 +20,6 @@ import GameArt from "@/components/GameArt";
 import HomeBoard from "@/components/HomeBoard";
 import ThemeToggle from "@/components/ThemeToggle";
 import { GAMES, featuredGameId } from "@/lib/games";
-import { SITE_DOMAIN } from "@/lib/site";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult } from "@/lib/sdk/storage";
 
@@ -383,9 +382,6 @@ export default function Home() {
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
           </nav>
-          <span className="hm-fnote">
-            {SITE_DOMAIN} · new games keep coming · streaks live on your device
-          </span>
         </div>
       </footer>
 
