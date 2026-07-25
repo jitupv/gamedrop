@@ -4,6 +4,10 @@
 > is built, and a full spec for the next 40 games so any developer or AI can keep
 > building it. If you were just handed this repo, read this file top to bottom and
 > you will understand the whole product.
+>
+> **Wondering if Vercel / Supabase / PostHog are set up? They are.** This handbook
+> describes the architecture, not the live connection state. For "what is already
+> deployed and connected" (and to stop asking), read **`docs/STATUS.md`** first.
 
 ---
 
