@@ -51,7 +51,7 @@ export default function GameGuide({ gameId }: { gameId: string }) {
       <header className="hm-header">
         <div className="hm-wrap hm-header-inner">
           <Link href="/" className="hm-brand">
-            GAMEDROP<span>.</span>
+            JEETLE<span>.</span>
           </Link>
           <nav className="hm-nav">
             <Link href={`/${gameId}`}>
@@ -117,7 +117,7 @@ export default function GameGuide({ gameId }: { gameId: string }) {
         </section>
 
         <footer className="sp-foot">
-          <span>New game every Friday</span>
+          <span>New games keep dropping</span>
           <nav>
             <Link href="/about">About</Link>
             <Link href="/privacy">Privacy</Link>

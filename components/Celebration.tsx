@@ -5,6 +5,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faStar, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { isMuted } from "@/lib/sdk/sound";
 import Countdown from "./Countdown";
+import PuzzleRating from "./PuzzleRating";
 
 const CONFETTI_COLORS = ["#c96f4a", "#d9a441", "#8a9a5b", "#6f8fa8", "#9d7a94", "#b25d6d", "#d97706"];
 
@@ -24,6 +25,7 @@ export default function Celebration({
   pill,
   footnote,
   countdown,
+  feedback,
 }: {
   title: string;
   subtitle?: string;
@@ -35,6 +37,7 @@ export default function Celebration({
   pill?: Action; // what the floating continue-pill does after ✕ (defaults to primary)
   footnote?: string;
   countdown?: boolean; // show the live "next challenge at midnight" ticker
+  feedback?: string; // game id - shows a one-tap "how was today's puzzle?" emoji row
 }) {
   const [display, setDisplay] = useState(0);
   const [hidden, setHidden] = useState(false);
@@ -191,6 +194,7 @@ export default function Celebration({
             </button>
           )}
         </div>
+        {feedback && <PuzzleRating game={feedback} />}
         {footnote && <p className="text-xs tx-soft mt-4">{footnote}</p>}
         {countdown && (
           <p className="text-xs tx-soft mt-1">

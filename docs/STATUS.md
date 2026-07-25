@@ -136,7 +136,11 @@ path breaks `npm install` for native deps.
 
 ## The only genuinely pending items (short and honest)
 
-1. **Buy the domain** (`gamedrop.day` recommended). Currently on `gamesdrop.vercel.app`.
+1. **Buy the domain** - **`jeetle.games`**. The in-app rebrand GAMEDROP -> JEETLE is
+   DONE (2026-07-25), but the site still deploys on `gamesdrop.vercel.app`. Once the
+   domain is bought and pointed at Vercel, set `NEXT_PUBLIC_SITE_URL=https://jeetle.games`
+   in Vercel and redeploy - that is the only code-side step. `SITE_DOMAIN` in
+   `lib/site.ts` already prints `jeetle.games` on share cards and the footer.
 2. **Supabase Auth URL config + custom SMTP** - only for the optional email-account
    feature, not the leaderboard.
 3. **Confirm PostHog ingestion** in the PostHog dashboard (a look, not a setup).

@@ -1,4 +1,4 @@
--- GAMEDROP leaderboard schema (v1)
+-- JEETLE leaderboard schema (v1)
 -- Paste this whole file into: Supabase Dashboard → SQL Editor → New query → Run
 --
 -- NOTE: this REPLACES the practice tables from the earlier lesson (profiles + scores).

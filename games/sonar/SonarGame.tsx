@@ -15,6 +15,7 @@ import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
 import Countdown from "@/components/Countdown";
+import PuzzleRating from "@/components/PuzzleRating";
 
 const CW = 900;
 const CH = 600;
@@ -612,6 +613,7 @@ export default function SonarGame() {
             {prior?.won && (
               <p className="text-xs tx-soft mt-2">Today&apos;s best: {prior.score} pings</p>
             )}
+            <PuzzleRating game="sonar" />
             <p className="text-xs tx-soft mt-2">
               <Countdown prefix="New mazes in" />
             </p>

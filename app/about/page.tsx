@@ -2,13 +2,13 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCalendarDay, faEarthAsia, faInfinity, faShieldHalved } from "@fortawesome/free-solid-svg-icons";
 import SimplePage from "@/components/SimplePage";
 
-export const metadata = { title: "About - GAMEDROP" };
+export const metadata = { title: "About - JEETLE" };
 
 export default function About() {
   return (
     <SimplePage
-      title="About GAMEDROP"
-      lede="A collection of original browser games built around one simple ritual: a brand-new game every Friday, and a fresh daily challenge in every game at midnight."
+      title="About JEETLE"
+      lede="A collection of original browser games built around one simple ritual: a fresh daily challenge in every game at midnight - and brand-new games keep dropping into the Vault."
     >
       <div className="sp-features">
         <div className="sp-feature">
@@ -16,8 +16,8 @@ export default function About() {
             <FontAwesomeIcon icon={faCalendarDay} width={14} height={14} />
           </span>
           <div>
-            <h3>New game every Friday</h3>
-            <p>A brand-new original game drops weekly. Older drops stay playable in the Vault, forever free.</p>
+            <h3>New games keep dropping</h3>
+            <p>Brand-new original games join the catalog regularly. Older drops stay playable in the Vault, forever free.</p>
           </div>
         </div>
         <div className="sp-feature">
@@ -52,7 +52,7 @@ export default function About() {
         Beat today&apos;s challenge, share your result, and dare your friends to do better - every
         share link carries your score as a challenge.
       </p>
-      <p>Made with ☕ &amp; 🍬 - new game every Friday.</p>
+      <p>Made with ☕ &amp; 🍬 - fresh challenges every midnight.</p>
     </SimplePage>
   );
 }

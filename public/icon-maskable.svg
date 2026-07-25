@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Jeetle">
+  <!-- Maskable variant: Android crops this to a circle/squircle, so the mark is
+       scaled to 78% about the centre and the background is full-bleed (no rounded
+       corners of our own). Everything stays inside the 80%-diameter safe zone. -->
+  <rect width="512" height="512" fill="#12151b"/>
+  <g transform="translate(256 256) scale(0.78) translate(-256 -256)">
+    <path fill="#e6c26b" d="M262 140H324V266A101 101 0 0 1 122 266H184A39 39 0 0 0 262 266Z"/>
+    <circle cx="372" cy="340" r="27" fill="#e6c26b"/>
+  </g>
+</svg>

@@ -1,10 +1,11 @@
 import { ImageResponse } from "next/og";
+import { SITE_DOMAIN, SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "GAMEDROP - a brand-new game every Friday";
+export const alt = `${SITE_NAME} - ${SITE_TAGLINE}`;
 
-// The card WhatsApp / X / iMessage / Slack render when a gamedrop link is shared.
+// The card WhatsApp / X / iMessage / Slack render when a Jeetle link is shared.
 // Dark "game mode" look to match the site: gold accent, a soft drop-glow behind the
 // wordmark, and a spectrum stripe of the game colors as a signature (no game count,
 // so it never goes stale as the catalog grows).
@@ -40,7 +41,7 @@ export default function OpengraphImage() {
             textTransform: "uppercase",
           }}
         >
-          A new game every Friday
+          A fresh challenge every midnight
         </div>
 
         {/* wordmark */}
@@ -54,7 +55,7 @@ export default function OpengraphImage() {
             letterSpacing: -6,
           }}
         >
-          GAMEDROP<span style={{ color: "#e6c26b" }}>.</span>
+          {SITE_NAME}<span style={{ color: "#e6c26b" }}>.</span>
         </div>
 
         {/* tagline */}
@@ -88,6 +89,21 @@ export default function OpengraphImage() {
               {t}
             </div>
           ))}
+        </div>
+
+        {/* the domain - this card travels to people who have never seen the site */}
+        <div
+          style={{
+            display: "flex",
+            position: "absolute",
+            bottom: 44,
+            right: 64,
+            fontSize: 30,
+            fontWeight: 800,
+            color: "#e6c26b",
+          }}
+        >
+          {SITE_DOMAIN}
         </div>
 
         {/* spectrum signature stripe along the bottom */}

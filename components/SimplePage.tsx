@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
+import { SITE_NAME } from "@/lib/site";
 import ThemeToggle from "./ThemeToggle";
 
 // shared shell for text pages (about / privacy / terms) - matches the homepage chrome
@@ -18,7 +19,7 @@ export default function SimplePage({
       <header className="hm-header">
         <div className="hm-wrap hm-header-inner">
           <Link href="/" className="hm-brand">
-            GAMEDROP<span>.</span>
+            JEETLE<span>.</span>
           </Link>
           <nav className="hm-nav">
             <Link href="/">
@@ -29,12 +30,12 @@ export default function SimplePage({
         </div>
       </header>
       <main className="sp-main">
-        <p className="hm-eyebrow">GAMEDROP</p>
+        <p className="hm-eyebrow">{SITE_NAME}</p>
         <h1 className="sp-title">{title}</h1>
         {lede && <p className="sp-lede">{lede}</p>}
         <div className="sp-prose">{children}</div>
         <footer className="sp-foot">
-          <span>New game every Friday</span>
+          <span>New games keep dropping</span>
           <nav>
             <Link href="/about">About</Link>
             <Link href="/privacy">Privacy</Link>

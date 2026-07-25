@@ -15,6 +15,7 @@ import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, inScreenSpace, pointToGame } from "@/lib/sdk/viewport";
 import Countdown from "@/components/Countdown";
+import PuzzleRating from "@/components/PuzzleRating";
 
 const MEMORIZE_S = 3;
 const PEEK_S = 1.2;
@@ -520,6 +521,7 @@ export default function TraceGame() {
               or replay today&apos;s sketches
             </button>
             {prior?.won && <p className="text-xs tx-soft mt-2">Today&apos;s best: {prior.score}%</p>}
+            <PuzzleRating game="trace" />
             <p className="text-xs tx-soft mt-2">
               <Countdown prefix="New sketches in" />
             </p>

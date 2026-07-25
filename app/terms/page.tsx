@@ -1,6 +1,6 @@
 import SimplePage from "@/components/SimplePage";
 
-export const metadata = { title: "Terms - GAMEDROP" };
+export const metadata = { title: "Terms - JEETLE" };
 
 export default function Terms() {
   return (
@@ -8,7 +8,7 @@ export default function Terms() {
       <p>Last updated: July 2026</p>
       <h2>The service</h2>
       <p>
-        GAMEDROP provides browser games for personal entertainment. The games are free to play
+        JEETLE provides browser games for personal entertainment. The games are free to play
         and provided &quot;as is&quot;, without warranties of any kind.
       </p>
       <h2>Fair play</h2>
@@ -20,7 +20,7 @@ export default function Terms() {
       </p>
       <h2>Content</h2>
       <p>
-        All games, artwork, and text on GAMEDROP are our original work. You&apos;re welcome to
+        All games, artwork, and text on JEETLE are our original work. You&apos;re welcome to
         share screenshots and results anywhere; please don&apos;t republish the games themselves.
       </p>
       <h2>Changes</h2>

@@ -7,18 +7,15 @@ export interface GameMeta {
   path: string;
   unit: string; // what the daily score measures
   higherIsBetter: boolean;
-  drop: number; // release order in the catalog - highest = this week's drop
+  drop: number; // release order in the catalog - highest = the newest drop, always featured
 }
 
-// Friday drop rotation - the featured game advances automatically each week.
-// When a NEW game ships, put its id first in line for the upcoming Friday.
-const FIRST_DROP_UTC = Date.UTC(2026, 6, 24); // Fri Jul 24 2026 - TILT's week; flips every Friday
-const ROTATION = ["tilt", "orbit", "sonar", "heist", "rush", "trace"];
-
-export function featuredGameId(now = new Date()): string {
-  const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  const week = Math.max(0, Math.floor((todayUTC - FIRST_DROP_UTC) / (7 * 86400000)));
-  return ROTATION[week % ROTATION.length];
+// The featured game is simply the newest drop. When a new game ships, give it
+// the next `drop` number and it becomes the featured game automatically. If a
+// week passes without a new game, the newest one stays featured - the homepage
+// never claims an old game is new.
+export function featuredGameId(): string {
+  return GAMES.reduce((a, b) => (b.drop > a.drop ? b : a)).id;
 }
 
 export const GAMES: GameMeta[] = [

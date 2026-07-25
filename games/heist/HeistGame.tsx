@@ -682,6 +682,7 @@ export default function HeistGame() {
               : "Endless museums keep growing - how deep can you go?"
           }
           countdown
+          feedback="heist"
         />
       )}
     </div>

@@ -1171,6 +1171,37 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .hm-next-art .scan { animation: none; opacity: 0; }
 }
+/* the art panel is decoration - give its space back to content on phones */
+@media (max-width: 759px) {
+  .hm-next-art { display: none; }
+}
+
+/* controls sitting ON the dark next-drop/vote card - the card is dark in BOTH
+   themes, so the light-surface button styles go black-on-black on hover.
+   Scope dark-chrome variants here instead of trusting the theme tokens. */
+.hm-next-card .btn-line {
+  background: transparent;
+  border-color: rgba(238, 240, 245, 0.28);
+  color: #eef0f5;
+}
+.hm-next-card .btn-line:hover:not(:disabled) {
+  background: rgba(238, 240, 245, 0.1);
+  border-color: rgba(238, 240, 245, 0.5);
+}
+.hm-next-card .btn-line:disabled { cursor: default; }
+.hm-next-card input.btn-line { text-align: left; justify-content: flex-start; }
+.hm-next-card input.btn-line::placeholder { color: rgba(238, 240, 245, 0.45); }
+.hm-next-card input.btn-line:focus {
+  outline: none;
+  border-color: rgba(238, 240, 245, 0.6);
+  background: rgba(238, 240, 245, 0.06);
+}
+.hm-next-card .btn-ink {
+  background: #eef0f5;
+  color: #14161c;
+}
+.hm-next-card .btn-ink:hover:not(:disabled) { background: #ffffff; }
+.hm-next-card .tx-soft { color: rgba(238, 240, 245, 0.55); }
 
 /* -- vault -- */
 .hm-vault { padding-block: 60px 80px; }

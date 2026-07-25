@@ -770,6 +770,7 @@ export default function OrbitGame() {
               : "Endless mode has no bottom - how far can you go?"
           }
           countdown
+          feedback="orbit"
         />
       )}
     </div>

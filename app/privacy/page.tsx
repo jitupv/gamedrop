@@ -1,6 +1,6 @@
 import SimplePage from "@/components/SimplePage";
 
-export const metadata = { title: "Privacy - GAMEDROP" };
+export const metadata = { title: "Privacy - JEETLE" };
 
 export default function Privacy() {
   return (

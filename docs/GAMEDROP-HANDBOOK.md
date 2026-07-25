@@ -1,6 +1,12 @@
-# GAMEDROP - Project Handbook
+# JEETLE - Project Handbook
 
-> A complete record of GAMEDROP: what it is, why every decision was made, how it
+> **Naming note (2026-07-25):** the product was renamed **GAMEDROP -> JEETLE**
+> (domain `jeetle.games`). "Jeetle" is "jeet le" - Hindi for "win it" - and reads
+> as one word (jee-tul) in English. The in-app rebrand is complete; the repo folder
+> and this file's name still say gamedrop. Older text below may still say GAMEDROP;
+> read it as JEETLE.
+>
+> A complete record of JEETLE: what it is, why every decision was made, how it
 > is built, and a full spec for the next 40 games so any developer or AI can keep
 > building it. If you were just handed this repo, read this file top to bottom and
 > you will understand the whole product.
@@ -37,7 +43,13 @@ endless is the depth. The finish screen of every daily is a springboard straight
 endless.
 
 **Live site:** https://gamesdrop.vercel.app  ·  **Repo:** github.com/jitupv/gamedrop
-**Intended domain:** gamedrop.day
+**Intended domain:** jeetle.games
+
+**Brand rules:** header wordmark is `JEETLE.` (uppercase + the accent-gold period,
+the same treatment every game name gets). The full domain `jeetle.games` appears only
+where the reader is NOT on the site: share cards, the OG image, page titles, and the
+footer. Brand strings live in `lib/site.ts` (`SITE_NAME`, `SITE_DOMAIN`,
+`SITE_TAGLINE`) - never hardcode them again.
 
 ---
 
@@ -235,13 +247,16 @@ interface GameMeta {
   path: string;          // "/sonar"
   unit: string;          // what the score measures: "pings", "launches", "pts"
   higherIsBetter: boolean; // true for score-attack, false for golf-style (fewer = better)
-  drop: number;          // release order; highest drop = this week's featured game
+  drop: number;          // release order; highest drop = the newest, featured game
 }
 ```
 
-- `featuredGameId()` computes which game is "this week's" by counting Fridays since
-  `FIRST_DROP_UTC` and rotating through `ROTATION`. **When a new game ships, add its id
-  to `ROTATION` and give it the next `drop` number.**
+- `featuredGameId()` returns the game with the highest `drop` number - the newest drop
+  is always the featured game. **When a new game ships, give it the next `drop` number
+  and it becomes featured automatically.** (There is no weekly rotation anymore: if no
+  new game ships for a while, the newest one simply stays featured. Decided 2026-07-25
+  along with removing the "every Friday" promise from all site copy - the site never
+  claims an old game is new.)
 - `challengeNumber(gameId)` (in `daily.ts`) = `dayNumber() + (latestDrop - thisGame.drop) * 7`.
   Because older games have been serving dailies longer, ORBIT (drop 1) shows a much
   higher challenge number than TILT (drop 6). This makes the catalog feel like it has
@@ -538,8 +553,8 @@ Notes for future maintainers:
   avoid an EPERM on `.next/trace`.
 - While editing a game file, a hot-reloading tab can briefly show a compile error - hard
   refresh (Ctrl+Shift+R) before judging a change.
-- On each Friday drop: add the new game to `ROTATION` in `lib/games.ts` and give it the
-  next `drop` number; the featured game then advances automatically.
+- On each new drop: give the new game the next `drop` number in `lib/games.ts`; the
+  featured game then advances automatically (highest `drop` wins).
 
 ---
 
@@ -573,8 +588,8 @@ Any new game MUST satisfy all of these, or it does not fit GAMEDROP:
    `shareResult(text, card)`, endless best via `reportEndlessBest`.
 3. `app/<id>/page.tsx` - `<div className="game-frame"><GameHeader gameId="<id>"/>
    <main ...><ChallengeBanner/><XGame/></main></div>`.
-4. `lib/games.ts` - add the `GameMeta` (with `drop` = next number) and add the id to
-   `ROTATION`.
+4. `lib/games.ts` - add the `GameMeta` (with `drop` = next number); it becomes the
+   featured game automatically.
 5. Homepage `HOME` map in `app/page.tsx` - add accent, genre, description, difficulty,
    time, lede.
 6. `GameArt.tsx` - add a small CSS/SVG scene for the hero + vault thumbnail.
@@ -920,7 +935,7 @@ Paste this to an AI coding assistant, filling in the brackets:
 > `applyView`/`pointToGame` from `lib/sdk/viewport.ts`, keeps mutable sim state in refs
 > and only HUD state in React, renders `ModeSwitch`, a stat bar, a `Celebration` on win
 > with a share card, a help overlay, and endless mode. Wire it into `lib/games.ts`
-> (registry + ROTATION + next `drop`), `app/[id]/page.tsx`, the homepage `HOME` map, and
+> (registry + next `drop` number), `app/[id]/page.tsx`, the homepage `HOME` map, and
 > `GameArt.tsx`. Enforce the game's constraint strictly (that is what makes it a real
 > puzzle). No em dashes in copy. Run `npx tsc --noEmit` and `npm run build` and fix all
 > errors. Keep the 100dvh no-scroll game frame.

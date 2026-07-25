@@ -9,16 +9,18 @@ import {
   faCheck,
   faCircleUser,
   faFire,
-  faHourglassHalf,
   faRankingStar,
   faStar,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import AccountModal from "@/components/AccountModal";
+import NotifyMe from "@/components/NotifyMe";
+import VoteCard from "@/components/VoteCard";
 import GameArt from "@/components/GameArt";
 import HomeBoard from "@/components/HomeBoard";
 import ThemeToggle from "@/components/ThemeToggle";
 import { GAMES, featuredGameId } from "@/lib/games";
+import { SITE_DOMAIN } from "@/lib/site";
 import { dayNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult } from "@/lib/sdk/storage";
 
@@ -88,7 +90,6 @@ export default function Home() {
   const [streak, setStreak] = useState(0);
   const [doneToday, setDoneToday] = useState<Record<string, boolean>>({});
   const [midnight, setMidnight] = useState("-:-:-");
-  const [friday, setFriday] = useState("-");
   const [stickyHidden, setStickyHidden] = useState(true);
   const [showAccount, setShowAccount] = useState(false);
   const [showBoard, setShowBoard] = useState(false);
@@ -97,7 +98,7 @@ export default function Home() {
 
   useEffect(() => {
     setNum(dayNumber());
-    setTodayId(featuredGameId()); // Friday drops rotate themselves
+    setTodayId(featuredGameId()); // always the newest drop
 
     const key = todayKey();
     const done: Record<string, boolean> = {};
@@ -115,13 +116,6 @@ export default function Home() {
       mid.setHours(24, 0, 0, 0);
       const s = Math.floor((mid.getTime() - now.getTime()) / 1000);
       setMidnight(`${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`);
-
-      const fri = new Date(now);
-      fri.setHours(0, 0, 0, 0);
-      const add = (5 - fri.getDay() + 7) % 7 || 7;
-      fri.setDate(fri.getDate() + add);
-      const ds = Math.floor((fri.getTime() - now.getTime()) / 1000);
-      setFriday(`${Math.floor(ds / 86400)}d ${pad(Math.floor(ds / 3600) % 24)}h`);
     };
     tick();
     const id = window.setInterval(tick, 1000);
@@ -151,7 +145,7 @@ export default function Home() {
       <header className="hm-header">
         <div className="hm-wrap hm-header-inner">
           <Link href="/" className="hm-brand">
-            GAMEDROP<span>.</span>
+            JEETLE<span>.</span>
           </Link>
           <nav className="hm-nav">
             <button type="button" className="hm-navbtn" onClick={() => setShowBoard(true)}>
@@ -227,7 +221,7 @@ export default function Home() {
         <div className="hm-wrap hm-hero-grid">
           <div>
             <p className="hm-eyebrow">
-              Drop {pad(today.drop)} <span>·</span> this week&apos;s game
+              Drop {pad(today.drop)} <span>·</span> our newest game
             </p>
             <h1 className="hm-title">
               {today.name}
@@ -246,7 +240,7 @@ export default function Home() {
             <div className="hm-cta">
               <div className="hm-cta-row">
                 <Link ref={ctaRef} href={today.path} className="hm-play">
-                  Play today&apos;s challenge{" "}
+                  Play now{" "}
                   <span className="arr">
                     <FontAwesomeIcon icon={faArrowRight} width={15} height={15} />
                   </span>
@@ -279,48 +273,6 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="hm-strip">
-        <div className="hm-wrap hm-strip-inner">
-          <div className="hm-fact">
-            <span className="k">Fridays</span>
-            <span className="v">A brand-new game drops</span>
-            <span className="d">
-              Next drop in <b>{friday}</b>
-            </span>
-          </div>
-          <div className="hm-fact">
-            <span className="k">Midnight</span>
-            <span className="v">Every game gets a fresh challenge</span>
-            <span className="d">Same puzzle for the whole world. One shot at the daily.</span>
-          </div>
-          <div className="hm-fact">
-            <span className="k">The Vault</span>
-            <span className="v">Old drops stay playable</span>
-            <span className="d">Daily + endless mode in every game, forever free.</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="hm-next hm-wrap">
-        <div className="hm-next-card">
-          <div className="hm-next-body">
-            <span className="k">Drop {pad(today.drop + 1)} · next Friday</span>
-            <h3>Something new is coming.</h3>
-            <p>
-              A brand-new original game joins the Vault every Friday. No reruns, no clones - we
-              build them from scratch.
-            </p>
-            <span className="hm-next-count">
-              <FontAwesomeIcon icon={faHourglassHalf} width={12} height={12} /> Drops in {friday}
-            </span>
-          </div>
-          <div className="hm-next-art" aria-hidden="true">
-            <span className="scan" />
-            <span className="q">?</span>
-          </div>
-        </div>
-      </section>
-
       <section className="hm-vault hm-wrap" id="vault">
         <div className="hm-vhead">
           <h2>The Vault</h2>
@@ -343,7 +295,7 @@ export default function Home() {
                 <div className="hm-thumb">
                   {isFeatured && (
                     <span className="hm-flag">
-                      <FontAwesomeIcon icon={faStar} width={10} height={10} /> This week
+                      <FontAwesomeIcon icon={faStar} width={10} height={10} /> Newest
                     </span>
                   )}
                   {!isFeatured && isDone && (
@@ -381,17 +333,59 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="hm-strip">
+        <div className="hm-wrap hm-strip-inner">
+          <div className="hm-fact">
+            <span className="k">New games</span>
+            <span className="v">Fresh drops keep coming</span>
+            <span className="d">Original games built from scratch - never reruns, never clones.</span>
+          </div>
+          <div className="hm-fact">
+            <span className="k">Midnight</span>
+            <span className="v">Every game gets a fresh challenge</span>
+            <span className="d">Same puzzle for the whole world. One shot at the daily.</span>
+          </div>
+          <div className="hm-fact">
+            <span className="k">The Vault</span>
+            <span className="v">Old drops stay playable</span>
+            <span className="d">Daily + endless mode in every game, forever free.</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="hm-next hm-wrap">
+        <div className="hm-next-card">
+          <div className="hm-next-body">
+            <span className="k">Drop {pad(today.drop + 1)} · in the workshop</span>
+            <h3>Something new is being built.</h3>
+            <p>
+              A brand-new original game joins the Vault when it&apos;s ready. No reruns, no clones -
+              we build them from scratch.
+            </p>
+            <NotifyMe />
+          </div>
+          <div className="hm-next-art" aria-hidden="true">
+            <span className="scan" />
+            <span className="q">?</span>
+          </div>
+        </div>
+      </section>
+
+      <VoteCard />
+
       <footer className="hm-foot">
         <div className="hm-wrap hm-foot-inner">
           <span className="hm-fbrand">
-            GAMEDROP<span>.</span>
+            JEETLE<span>.</span>
           </span>
           <nav>
             <Link href="/about">About</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
           </nav>
-          <span className="hm-fnote">New game every Friday · streaks live on your device</span>
+          <span className="hm-fnote">
+            {SITE_DOMAIN} · new games keep coming · streaks live on your device
+          </span>
         </div>
       </footer>
 

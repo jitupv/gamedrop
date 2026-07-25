@@ -1,6 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="28" fill="#f4efe6"/>
-  <rect x="4" y="4" width="120" height="120" rx="24" fill="none" stroke="#1c1917" stroke-opacity="0.12" stroke-width="2"/>
-  <text x="64" y="86" font-family="Georgia, serif" font-size="64" font-weight="bold" text-anchor="middle" fill="#1c1917">G</text>
-  <circle cx="92" cy="40" r="10" fill="#b45309"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Jeetle">
+  <rect width="512" height="512" rx="112" fill="#12151b"/>
+  <!-- Bold geometric J: straight stem with a flat top, one true semicircular hook
+       ending in a flat cut (the way a real J terminates - a round cap reads as "u").
+       Outer hook radius 101, inner 39, band 62. Reads crisply down to 16px.
+       Mark spans the middle ~54% of the frame, inside the maskable safe zone. -->
+  <path fill="#e6c26b" d="M262 140H324V266A101 101 0 0 1 122 266H184A39 39 0 0 0 262 266Z"/>
+  <!-- the brand period, sitting on the J's baseline, right of the hook -->
+  <circle cx="372" cy="340" r="27" fill="#e6c26b"/>
 </svg>

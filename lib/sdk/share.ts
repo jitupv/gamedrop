@@ -1,9 +1,10 @@
 // Spoiler-free share artifacts - the free growth channel.
 // Text grids (the Wordle pattern) + a rendered stat-card image for the share sheet.
 import { track } from "./analytics";
+import { SITE_DOMAIN, SITE_NAME } from "../site";
 
 export function buildShare(game: string, num: number, lines: string[], challengeUrl?: string): string {
-  return [`${game} #${num}`, ...lines, challengeUrl ? `🎯 beat me: ${challengeUrl}` : "🪐 gamedrop.day"].join("\n");
+  return [`${game} #${num}`, ...lines, challengeUrl ? `🎯 beat me: ${challengeUrl}` : `🪐 ${SITE_DOMAIN}`].join("\n");
 }
 
 // a live link back to this exact game, carrying the score to beat
@@ -31,7 +32,7 @@ export interface ShareCard {
 }
 
 // 1080×1080 share card: dark card, game-colored glow, giant emoji watermark,
-// brand + challenge number, big stat, emoji grid, gamedrop.day footer
+// brand + challenge number, big stat, emoji grid, domain footer
 async function renderCard(card: ShareCard): Promise<Blob | null> {
   try {
     if (typeof document === "undefined") return null;
@@ -74,8 +75,8 @@ async function renderCard(card: ShareCard): Promise<Blob | null> {
     // brand
     ctx.fillStyle = "#eef0f5";
     ctx.font = `800 56px ${fam}`;
-    ctx.fillText("GAMEDROP", 72, 118);
-    const bw = ctx.measureText("GAMEDROP").width;
+    ctx.fillText(SITE_NAME, 72, 118);
+    const bw = ctx.measureText(SITE_NAME).width;
     ctx.fillStyle = "#e6c26b";
     ctx.fillText(".", 72 + bw + 4, 118);
 
@@ -116,7 +117,7 @@ async function renderCard(card: ShareCard): Promise<Blob | null> {
     ctx.fillText("Same challenge for everyone · new puzzle at midnight", 72, 992);
     ctx.fillStyle = card.accent;
     ctx.font = `800 46px ${fam}`;
-    ctx.fillText("gamedrop.day", 72, 1052);
+    ctx.fillText(SITE_DOMAIN, 72, 1052);
 
     return await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
   } catch {
@@ -132,7 +133,7 @@ export async function shareResult(text: string, card?: ShareCard): Promise<Share
   if (card) {
     const blob = await renderCard(card);
     if (blob) {
-      const file = new File([blob], `gamedrop-${card.game.toLowerCase()}-${card.num}.png`, {
+      const file = new File([blob], `${SITE_NAME.toLowerCase()}-${card.game.toLowerCase()}-${card.num}.png`, {
         type: "image/png",
       });
       // 1) native sheet with image + caption (WhatsApp keeps both)

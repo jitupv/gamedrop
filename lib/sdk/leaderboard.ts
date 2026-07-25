@@ -160,7 +160,7 @@ export async function signOutAccount(): Promise<void> {
 }
 
 // display-name rules: public wall, so keep it clean and simple
-const RESERVED = ["admin", "gamedrop", "official", "moderator", "system"];
+const RESERVED = ["admin", "jeetle", "gamedrop", "official", "moderator", "system"];
 const BLOCKED = ["fuck", "shit", "bitch", "asshole", "chutiya", "madarchod", "bhosdi"];
 
 export function validateHandle(name: string): string | null {
@@ -264,5 +264,23 @@ export async function fetchBoard(
     };
   } catch {
     return null;
+  }
+}
+
+// ---- drop-notify list ----------------------------------------------------
+
+// add an email to the "tell me when a new game drops" list.
+// duplicate emails count as success; returns false only on a real failure.
+export async function joinDropList(email: string): Promise<boolean> {
+  const s = sb();
+  if (!s) return false;
+  const clean = email.trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean) || clean.length > 254) return false;
+  try {
+    const { error } = await s.from("drop_signups").insert({ email: clean });
+    if (!error) return true;
+    return error.code === "23505"; // unique violation = already on the list
+  } catch {
+    return false;
   }
 }

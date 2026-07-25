@@ -34,7 +34,7 @@ export default function GameHeader({ gameId }: { gameId: string }) {
         <div className="flex items-center gap-1.5 w-28">
           <Link
             href="/"
-            aria-label="Back to GAMEDROP"
+            aria-label="Back to JEETLE"
             className="gh-back w-8 h-8 flex items-center justify-center rounded-full text-[13px] transition"
           >
             <FontAwesomeIcon icon={faArrowLeft} width={13} height={13} />

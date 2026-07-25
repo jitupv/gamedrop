@@ -819,6 +819,7 @@ export default function TiltGame() {
               : "Endless mode has no bottom - how far can you go?"
           }
           countdown
+          feedback="tilt"
         />
       )}
 

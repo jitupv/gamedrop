@@ -24,10 +24,10 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     id: "tilt",
     name: "TILT",
     genre: "Match and slide puzzle",
-    playTitle: "TILT - free daily match puzzle | GAMEDROP",
+    playTitle: "TILT - free daily match puzzle | JEETLE",
     playDescription:
       "Swipe the whole board, slide every tile, and pop lines of three. A free daily match puzzle in your browser, no download.",
-    guideTitle: "How to play TILT - tips and daily challenge guide | GAMEDROP",
+    guideTitle: "How to play TILT - tips and daily challenge guide | JEETLE",
     guideDescription:
       "Learn how to play TILT, the free daily match-and-slide puzzle. Rules, scoring, and strategy tips to beat today's challenge.",
     what: "TILT is a free daily match puzzle you play in your browser. Instead of swapping two tiles like most match games, you swipe the entire board at once - every tile slides in that direction, and any line of three or more matching colors pops for points. Simple to start, tricky to master, and a fresh board every day.",
@@ -55,10 +55,10 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     id: "orbit",
     name: "ORBIT",
     genre: "Gravity golf physics puzzle",
-    playTitle: "ORBIT - free daily gravity golf puzzle | GAMEDROP",
+    playTitle: "ORBIT - free daily gravity golf puzzle | JEETLE",
     playDescription:
       "Golf, but the course is a solar system. Sling a probe around planets using real gravity. A free daily physics puzzle, no download.",
-    guideTitle: "How to play ORBIT - gravity golf tips and guide | GAMEDROP",
+    guideTitle: "How to play ORBIT - gravity golf tips and guide | JEETLE",
     guideDescription:
       "Learn how to play ORBIT, the free daily gravity golf puzzle. Aiming, slingshots, and strategy to finish each hole in fewer launches.",
     what: "ORBIT is a free daily physics puzzle: golf, but the course is a solar system. You drag to launch a probe and let the real gravity of the planets curve its path into the beacon. There is never a straight-shot answer, so every hole is a small orbital-mechanics puzzle you solve with one careful launch at a time.",
@@ -86,10 +86,10 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     id: "sonar",
     name: "SONAR",
     genre: "Maze memory game",
-    playTitle: "SONAR - free daily maze memory game | GAMEDROP",
+    playTitle: "SONAR - free daily maze memory game | JEETLE",
     playDescription:
       "You are blind in a dark maze. Ping to reveal the walls, memorize them, and escape. A free daily memory game, no download.",
-    guideTitle: "How to play SONAR - maze memory tips and guide | GAMEDROP",
+    guideTitle: "How to play SONAR - maze memory tips and guide | JEETLE",
     guideDescription:
       "Learn how to play SONAR, the free daily maze memory game. How pinging works, plus strategy to escape in as few pings as possible.",
     what: "SONAR is a free daily maze memory game. You are a dot in a pitch-black maze. Tap to send out a ping that lights up the nearby walls for a heartbeat, then you memorize the layout and feel your way to the exit in the dark. It rewards memory and nerve, not fast reflexes.",
@@ -117,10 +117,10 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     id: "heist",
     name: "HEIST",
     genre: "Stealth planning puzzle",
-    playTitle: "HEIST - free daily stealth planning puzzle | GAMEDROP",
+    playTitle: "HEIST - free daily stealth planning puzzle | JEETLE",
     playDescription:
       "Plan the perfect robbery: grab every gem, dodge patrolling guards, reach the exit. A free daily stealth puzzle, no download.",
-    guideTitle: "How to play HEIST - stealth puzzle tips and guide | GAMEDROP",
+    guideTitle: "How to play HEIST - stealth puzzle tips and guide | JEETLE",
     guideDescription:
       "Learn how to play HEIST, the free daily stealth planning puzzle. Route rules, guard timing, and strategy to pull the perfect crime.",
     what: "HEIST is a free daily stealth puzzle. You plan a thief's entire route through a museum, past guards walking fixed patrol loops, collecting every gem before reaching the exit. Then you press GO and watch your plan play out. Guards move when you move, so it is a puzzle of routing and timing, not reflexes.",
@@ -148,10 +148,10 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     id: "rush",
     name: "RUSH",
     genre: "Reflex and timing game",
-    playTitle: "RUSH - free daily traffic light reflex game | GAMEDROP",
+    playTitle: "RUSH - free daily traffic light reflex game | JEETLE",
     playDescription:
       "You are the traffic light. Time your greens, keep cars flowing, never let two touch. A free daily reflex game, no download.",
-    guideTitle: "How to play RUSH - traffic light game tips and guide | GAMEDROP",
+    guideTitle: "How to play RUSH - traffic light game tips and guide | JEETLE",
     guideDescription:
       "Learn how to play RUSH, the free daily traffic-light reflex game. Timing tips and strategy to pass more cars without a crash.",
     what: "RUSH is a free daily reflex game. You control a single traffic light at a busy four-way intersection. Toggle it to let each direction of cars through, keep the intersection flowing, and never let two cars touch. It starts calm and speeds up until one wrong moment ends the run.",
@@ -179,10 +179,10 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     id: "trace",
     name: "TRACE",
     genre: "Drawing memory game",
-    playTitle: "TRACE - free daily draw-from-memory game | GAMEDROP",
+    playTitle: "TRACE - free daily draw-from-memory game | JEETLE",
     playDescription:
       "A shape flashes, then vanishes. Redraw it in one stroke from memory. A free daily drawing memory game, no download.",
-    guideTitle: "How to play TRACE - drawing memory tips and guide | GAMEDROP",
+    guideTitle: "How to play TRACE - drawing memory tips and guide | JEETLE",
     guideDescription:
       "Learn how to play TRACE, the free daily draw-from-memory game. How scoring works and tips to draw more accurately from memory.",
     what: "TRACE is a free daily drawing-from-memory game. A shape appears on screen for three seconds, then disappears - and you redraw it in one continuous stroke, entirely from memory. Your drawing is scored on how closely it matches the hidden original. No undo, no reference, just your memory and a steady hand.",

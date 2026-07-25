@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import { config } from "@fortawesome/fontawesome-svg-core";
 import "@fortawesome/fontawesome-svg-core/styles.css";
 import Analytics from "@/components/Analytics";
-import { SITE_URL } from "@/lib/site";
+import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 // FA CSS is imported above once - stop the runtime from injecting it (avoids icon flash)
@@ -23,21 +23,23 @@ export const viewport: Viewport = {
 };
 
 const DESC =
-  "A brand-new game every Friday, each with a fresh daily challenge and an endless mode. Free to play, no download.";
+  "Original browser games, each with a fresh daily challenge at midnight and an endless mode. New games keep dropping. Free to play, no download.";
+
+const TITLE = `${SITE_NAME} - ${SITE_TAGLINE}`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "GAMEDROP - a brand-new game every Friday",
+  title: TITLE,
   description: DESC,
   openGraph: {
-    title: "GAMEDROP - a brand-new game every Friday",
+    title: TITLE,
     description: DESC,
-    siteName: "GAMEDROP",
+    siteName: SITE_NAME,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "GAMEDROP - a brand-new game every Friday",
+    title: TITLE,
     description: DESC,
   },
 };

@@ -32,6 +32,7 @@ import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { applyView, inScreenSpace } from "@/lib/sdk/viewport";
 import Countdown from "@/components/Countdown";
+import PuzzleRating from "@/components/PuzzleRating";
 
 const COLORS = ["#c96f4a", "#d9a441", "#8a9a5b", "#6f8fa8", "#9d7a94", "#b25d6d"];
 
@@ -405,6 +406,7 @@ export default function RushGame() {
                 Again
               </button>
             </div>
+            <PuzzleRating game="rush" quiet />
             <p className="text-xs tx-soft mt-4">
               Same traffic for everyone · <Countdown prefix="new rush in" />
             </p>
