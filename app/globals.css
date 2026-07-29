@@ -1464,6 +1464,7 @@ body {
 }
 
 /* TILT - candy board */
+.art-prism { background: #12151b; }
 .art-tilt { background: #1e2027; display: grid; place-items: center; }
 .art-tilt .tiles {
   display: grid;

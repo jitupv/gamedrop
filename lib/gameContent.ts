@@ -20,6 +20,38 @@ export interface GameContent {
 }
 
 export const GAME_CONTENT: Record<string, GameContent> = {
+  prism: {
+    id: "prism",
+    name: "PRISM",
+    genre: "Laser and mirror logic puzzle",
+    playTitle: "PRISM - free daily laser and mirror puzzle | JEETLE",
+    playDescription:
+      "Bend a laser through every target using a limited budget of mirrors. A free daily logic puzzle in your browser, no download.",
+    guideTitle: "How to play PRISM - laser and mirror puzzle tips and guide | JEETLE",
+    guideDescription:
+      "Learn how to play PRISM, the free daily laser and mirror puzzle. Rules, mirror budgeting, and strategy to route the beam in fewer mirrors.",
+    what: "PRISM is a free daily logic puzzle you play in your browser. A laser fires from a fixed emitter and travels in a straight line until it hits a wall, leaves the grid, or is bent by a mirror you place. Tap cells to lay down angled mirrors and route the beam through every target ring on its way to the receiver - using as few mirrors as you can from a strictly limited budget.",
+    how: [
+      "Watch the beam leave the emitter and travel in a straight line.",
+      "Tap an empty cell to place a mirror; tap again to flip its angle, and once more to remove it.",
+      "Route the beam so it passes through every glowing ring before reaching the receiver.",
+      "You can only have so many mirrors down at once - remove one to free up the budget and try a different route.",
+      "The beam can never cross a cell it has already passed through, so plan bends that don't double back on themselves.",
+    ],
+    tips: [
+      "Work backwards from the receiver as often as forwards from the emitter - the last bend is usually the easiest to pin down.",
+      "A mirror only ever turns the beam 90 degrees, never straight through or back the way it came - use that to rule out angles fast.",
+      "Removing a mirror is free, so experiment. There is no penalty for trying a bend and undoing it.",
+      "Fewer mirrors than the budget earns extra stars, so once you find a working route, look for a shorter one.",
+    ],
+    faq: [
+      { q: "Is PRISM free to play?", a: "Yes. PRISM is completely free to play in any web browser, with no download and no sign-up required." },
+      { q: "What is the daily challenge?", a: "Every day at midnight PRISM generates three new boards that are identical for every player in the world. Clear them and share your mirror count with friends." },
+      { q: "Is there an endless mode?", a: "Yes. In endless mode the boards keep growing and a shared mirror bank only partially refills after each one - spend mirrors wisely, because the bank eventually runs out." },
+      { q: "Why can't I place a mirror on some cells?", a: "Mirrors can't sit on walls, the emitter, the receiver, or a target ring - only on plain empty cells the beam can freely pass through." },
+    ],
+  },
+
   tilt: {
     id: "tilt",
     name: "TILT",
@@ -207,4 +239,4 @@ export const GAME_CONTENT: Record<string, GameContent> = {
   },
 };
 
-export const GUIDE_ORDER = ["tilt", "orbit", "sonar", "heist", "rush", "trace"];
+export const GUIDE_ORDER = ["prism", "tilt", "orbit", "sonar", "heist", "rush", "trace"];

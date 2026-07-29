@@ -29,6 +29,14 @@ const HOME: Record<
   string,
   { accent: string; genre: string; desc: string; lede: [string, string, string]; diff: 1 | 2 | 3; time: string }
 > = {
+  prism: {
+    accent: "#ff2d6f",
+    genre: "Laser logic",
+    desc: "A laser fires from a fixed point. Bend it with mirrors through every target - on a strict budget.",
+    lede: ["A laser fires.", "Bend it with mirrors.", "Every target, on a strict mirror budget."],
+    diff: 2,
+    time: "2-4 min",
+  },
   tilt: {
     accent: "#ff6f61",
     genre: "Match puzzle",

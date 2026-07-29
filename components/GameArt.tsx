@@ -9,6 +9,26 @@ const TILT_TILES = [
 
 export default function GameArt({ id }: { id: string }) {
   switch (id) {
+    case "prism":
+      return (
+        <div className="art art-prism" aria-hidden="true">
+          <svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid meet">
+            <path
+              d="M 20 60 L 150 60 L 150 150 L 260 150"
+              fill="none"
+              stroke="#ff2d6f"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="20" cy="60" r="7" fill="#ff2d6f" />
+            <line x1="136" y1="46" x2="164" y2="74" stroke="#eef0f5" strokeWidth="4" strokeLinecap="round" />
+            <line x1="136" y1="164" x2="164" y2="136" stroke="#eef0f5" strokeWidth="4" strokeLinecap="round" />
+            <circle cx="205" cy="150" r="10" fill="none" stroke="rgba(238,240,245,0.5)" strokeWidth="2" />
+            <rect x="248" y="138" width="24" height="24" rx="5" fill="rgba(63,191,127,0.35)" stroke="#3fbf7f" strokeWidth="2" />
+          </svg>
+        </div>
+      );
     case "tilt":
       return (
         <div className="art art-tilt" aria-hidden="true">

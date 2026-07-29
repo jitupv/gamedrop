@@ -55,6 +55,27 @@ function drawWatermark(
   let drawn = true;
 
   switch (game) {
+    case "prism": {
+      // a bent beam bouncing off a mirror line - the game's whole mechanic in one mark
+      ctx.lineWidth = s * 0.045;
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.46, cy - s * 0.28);
+      ctx.lineTo(cx - s * 0.04, cy - s * 0.28);
+      ctx.lineTo(cx + s * 0.42, cy + s * 0.4);
+      ctx.stroke();
+      ctx.save();
+      ctx.translate(cx - s * 0.04, cy - s * 0.28);
+      ctx.rotate(-Math.PI / 4);
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.16, 0);
+      ctx.lineTo(s * 0.16, 0);
+      ctx.stroke();
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(cx - s * 0.46, cy - s * 0.28, s * 0.06, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
     case "tilt": {
       // a 3x3 slab of tiles - the board you swipe
       const n = 3;

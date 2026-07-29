@@ -20,6 +20,17 @@ export function featuredGameId(): string {
 
 export const GAMES: GameMeta[] = [
   {
+    id: "prism",
+    drop: 7,
+    name: "PRISM",
+    tagline: "Bend a laser through every target. Budget your mirrors.",
+    status: "live",
+    emoji: "🪞",
+    path: "/prism",
+    unit: "mirrors",
+    higherIsBetter: false,
+  },
+  {
     id: "tilt",
     drop: 6,
     name: "TILT",
