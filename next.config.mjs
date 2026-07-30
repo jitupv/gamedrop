@@ -16,14 +16,21 @@ const nextConfig = {
           { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
         ],
       },
-      {
-        // hashed build assets are safe to cache forever - a new deploy gets
-        // new filenames, so there is never a staleness risk here
-        source: "/_next/static/:path*",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
+      // Production build assets are content-hashed, so a new deploy gets new
+      // filenames and caching forever is safe. In dev the chunk names are
+      // stable across recompiles, so the same header would pin a stale bundle
+      // in the browser for a year and no amount of reloading would pick up an
+      // edit - hence production only.
+      ...(process.env.NODE_ENV === "production"
+        ? [
+            {
+              source: "/_next/static/:path*",
+              headers: [
+                { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+              ],
+            },
+          ]
+        : []),
     ];
   },
 };

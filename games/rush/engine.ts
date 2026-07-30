@@ -15,12 +15,41 @@ export const CRUISE = 175; // px/s
 export const ACCEL = 380; // px/s^2
 export const DAILY_GOAL = 25; // cars passed = daily challenge cleared
 
+// Drivers will not sit on a red forever. Without this, leaving one light green
+// was a risk-free infinite score: the ignored road just queued up quietly and
+// the game stopped sending cars down it, so doing nothing was the best play.
+// Now a neglected road leaks a red-runner into the crossing, which means
+// starving an axis is the losing move rather than the winning one.
+export const PATIENCE_MAX = 7; // seconds a front car will wait early on
+export const PATIENCE_MIN = 3.4; // ...and once the rush is in full swing
+export const CREEP_FRAC = 0.6; // fraction of patience spent still, then it nudges
+export const CREEP_SPEED = 11; // px/s of visible "I'm going" creep
+export const CREEP_MAX = 26; // px it can nudge past the line before it commits
+
+export type Dir = 0 | 1 | 2 | 3;
+
 export interface Car {
-  dir: 0 | 1 | 2 | 3;
+  dir: Dir;
   pos: number; // front-of-car distance along travel axis from its entry edge
   v: number;
   color: number;
   counted: boolean;
+  wait: number; // seconds spent stopped at a red, front-of-queue only
+  jumped: boolean; // ran the red - the light no longer holds this one back
+}
+
+// How long the front car of a red queue tolerates the wait. Tightens as the
+// traffic thickens so the endgame squeezes from both sides at once.
+export function patienceFor(elapsed: number): number {
+  return Math.max(PATIENCE_MIN, PATIENCE_MAX - elapsed * 0.045);
+}
+
+// Visible tell before a car runs the red: it sits still, then starts inching
+// forward. That nudge is the player's warning, so a red-run never feels random.
+export function creepOf(car: Car, patience: number): number {
+  const still = patience * CREEP_FRAC;
+  if (car.wait <= still) return 0;
+  return Math.min(CREEP_MAX, (car.wait - still) * CREEP_SPEED);
 }
 
 // axis length a car travels for each direction
@@ -59,22 +88,38 @@ export function rectsOverlap(
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-// seeded spawn stream - same traffic for everyone today
-export function makeSpawner(dayKey: string) {
+export interface SpawnEvent {
+  t: number; // seconds into the run when this car arrives
+  dir: Dir;
+  color: number;
+}
+
+// The day's traffic, as a schedule rather than a per-frame dice roll.
+//
+// The old spawner drew its jitter inside the "is it time yet?" check, so it
+// burned a random number every frame (~60/s) and rolled a direction again on
+// every rejected spawn. Both made the stream depend on the player's framerate
+// and their own light choices, which quietly broke the "same traffic for
+// everyone today" promise the game prints in two places. Here each event
+// consumes exactly one draw per field, and its time comes from the schedule
+// rather than the clock, so the sequence is identical on a 60Hz laptop and a
+// 120Hz phone no matter how the player drives it.
+export function makeTrafficStream(dayKey: string) {
   const rng = mulberry32(hashSeed(`rush:${dayKey}`));
+  let t = 0;
   return {
-    nextDir(): 0 | 1 | 2 | 3 {
-      return Math.floor(rng() * 4) as 0 | 1 | 2 | 3;
-    },
-    nextColor(): number {
-      return Math.floor(rng() * 6);
-    },
-    jitter(): number {
-      return 0.75 + rng() * 0.5;
+    next(): SpawnEvent {
+      t += spawnInterval(t) * (0.78 + rng() * 0.44);
+      return { t, dir: Math.floor(rng() * 4) as Dir, color: Math.floor(rng() * 6) };
     },
   };
 }
 
+// Ramps for 75s and then floors. The floor is deliberately below what any
+// alternation pattern can serve: at 0.30s a spawn arrives every ~1.2s per
+// direction while a green axis only drains ~2.9 cars/s, so both axes together
+// demand more than 100% of the light's time. That gives the high score a real
+// ceiling instead of letting a steady player idle at a plateau forever.
 export function spawnInterval(elapsed: number): number {
-  return Math.max(0.62, 2.4 - elapsed * 0.028);
+  return Math.max(0.3, 2.4 - elapsed * 0.028);
 }

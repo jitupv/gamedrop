@@ -13,17 +13,20 @@ import {
   CW,
   Car,
   DAILY_GOAL,
+  Dir,
   GAP,
   HALF,
   LANE,
   STOP,
+  SpawnEvent,
   XC,
   YC,
   carRect,
+  creepOf,
   isHorizontal,
-  makeSpawner,
+  makeTrafficStream,
+  patienceFor,
   rectsOverlap,
-  spawnInterval,
 } from "./engine";
 import { challengeNumber, todayKey } from "@/lib/sdk/daily";
 import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
@@ -36,7 +39,24 @@ import PuzzleRating from "@/components/PuzzleRating";
 
 const COLORS = ["#c96f4a", "#d9a441", "#8a9a5b", "#6f8fa8", "#9d7a94", "#b25d6d"];
 
-type Phase = "ready" | "run" | "crashed";
+// "crashing" is the beat between the impact and the summary panel - the wreck
+// needs a moment to read as a wreck, otherwise the panel appears out of nowhere
+// and nobody knows what they did wrong.
+type Phase = "ready" | "run" | "crashing" | "crashed";
+
+const CRASH_BEAT = 1.35; // seconds of wreckage before the panel slides in
+
+interface Debris {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  spin: number;
+  rot: number;
+  size: number;
+  life: number;
+  color: string;
+}
 
 export default function RushGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,16 +67,24 @@ export default function RushGame() {
   const [streak, setStreak] = useState(0);
   const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [crashHidden, setCrashHidden] = useState(false);
 
   const carsRef = useRef<Car[]>([]);
   const lightRef = useRef<"H" | "V">("H");
   const phaseRef = useRef<Phase>("ready");
   const scoreRef = useRef(0);
   const bestRef = useRef(0);
-  const startRef = useRef(0);
-  const lastSpawnRef = useRef(0);
-  const spawnerRef = useRef<ReturnType<typeof makeSpawner> | null>(null);
+  const simTRef = useRef(0);
+  const streamRef = useRef<ReturnType<typeof makeTrafficStream> | null>(null);
+  const nextEventRef = useRef<SpawnEvent | null>(null);
+  // cars whose scheduled arrival has passed but whose entry was still blocked -
+  // held per direction so the day's total traffic stays the same for everyone
+  const pendingRef = useRef<Record<Dir, number[]>>({ 0: [], 1: [], 2: [], 3: [] });
   const crashPairRef = useRef<Car[]>([]);
+  const crashAtRef = useRef(0);
+  const crashPtRef = useRef({ x: XC, y: YC });
+  const debrisRef = useRef<Debris[]>([]);
+  const patienceRef = useRef(0);
   const shakeRef = useRef(0);
   const portraitRef = useRef(false);
   const dayRef = useRef("");
@@ -71,10 +99,15 @@ export default function RushGame() {
     lightRef.current = "H";
     scoreRef.current = 0;
     setScore(0);
-    spawnerRef.current = makeSpawner(dayRef.current);
-    startRef.current = performance.now();
-    lastSpawnRef.current = performance.now();
+    const stream = makeTrafficStream(dayRef.current);
+    streamRef.current = stream;
+    nextEventRef.current = stream.next();
+    pendingRef.current = { 0: [], 1: [], 2: [], 3: [] };
+    simTRef.current = 0;
     crashPairRef.current = [];
+    debrisRef.current = [];
+    patienceRef.current = patienceFor(0);
+    setCrashHidden(false);
     blip(520, 0.09, "triangle", 0.06);
     setPhaseBoth("run");
   };
@@ -126,8 +159,36 @@ export default function RushGame() {
     let raf = 0;
     let last = performance.now();
 
-    const endRun = () => {
+    // the impact itself: freeze the traffic, throw wreckage, shake the camera.
+    // Saving and the summary panel are deliberately deferred to endRun so the
+    // player actually sees the collision that ended their run.
+    const startCrash = () => {
       chirp(280, 45, 0.5, "sawtooth", 0.1);
+      shakeRef.current = 24;
+      crashAtRef.current = performance.now();
+      const { x, y } = crashPtRef.current;
+      const paint = crashPairRef.current.map((c) => COLORS[c.color % COLORS.length]);
+      const bits: Debris[] = [];
+      for (let i = 0; i < 18; i++) {
+        const ang = (i / 18) * Math.PI * 2 + Math.random() * 0.5;
+        const sp = 90 + Math.random() * 210;
+        bits.push({
+          x,
+          y,
+          vx: Math.cos(ang) * sp,
+          vy: Math.sin(ang) * sp,
+          spin: (Math.random() - 0.5) * 14,
+          rot: Math.random() * Math.PI,
+          size: 3 + Math.random() * 5,
+          life: 0.55 + Math.random() * 0.8,
+          color: paint[i % Math.max(1, paint.length)] ?? "#8a6a5b",
+        });
+      }
+      debrisRef.current = bits;
+      setPhaseBoth("crashing");
+    };
+
+    const endRun = () => {
       const s = scoreRef.current;
       saveResult("rush", dayRef.current, { score: s, won: s >= DAILY_GOAL }, true);
       if (s > bestRef.current) {
@@ -144,37 +205,86 @@ export default function RushGame() {
 
       // ---- simulate ----
       if (phaseRef.current === "run") {
-        const spawner = spawnerRef.current;
-        const elapsed = (now - startRef.current) / 1000;
-        if (spawner && (now - lastSpawnRef.current) / 1000 > spawnInterval(elapsed) * spawner.jitter()) {
-          const dir = spawner.nextDir();
+        // Simulated time, not wall-clock. dt is capped at 50ms, so a throttled
+        // or backgrounded tab advances the physics slowly - if the schedule ran
+        // off the wall clock instead, coming back to the tab would bank a minute
+        // of traffic and dump an unavoidable wall of cars onto the board.
+        simTRef.current += dt;
+        const elapsed = simTRef.current;
+        const stream = streamRef.current;
+
+        // release every car the schedule says has arrived by now into its
+        // direction's holding queue, then put as many on the road as fit
+        while (stream && nextEventRef.current && nextEventRef.current.t <= elapsed) {
+          const ev = nextEventRef.current;
+          pendingRef.current[ev.dir].push(ev.color);
+          nextEventRef.current = stream.next();
+        }
+        for (const dir of [0, 1, 2, 3] as const) {
+          const queue = pendingRef.current[dir];
+          if (queue.length === 0) continue;
           const clear = carsRef.current.every((c) => c.dir !== dir || c.pos > CAR_LEN + GAP + 8);
-          if (clear) {
-            carsRef.current.push({ dir, pos: 0, v: CRUISE * 0.6, color: spawner.nextColor(), counted: false });
-            lastSpawnRef.current = now;
-          }
+          if (!clear) continue;
+          carsRef.current.push({
+            dir,
+            pos: 0,
+            v: CRUISE * 0.6,
+            color: queue.shift() as number,
+            counted: false,
+            wait: 0,
+            jumped: false,
+          });
         }
 
+        const patience = patienceFor(elapsed);
+        patienceRef.current = patience;
         const light = lightRef.current;
         for (const dir of [0, 1, 2, 3] as const) {
           const group = carsRef.current.filter((c) => c.dir === dir).sort((a, b) => b.pos - a.pos);
           const green = isHorizontal(dir) ? light === "H" : light === "V";
           for (let i = 0; i < group.length; i++) {
             const car = group[i];
+            if (green) car.wait = 0;
+            // only the car at the front of a red queue loses its patience -
+            // the ones behind it are held back by metal, not by the light
+            const atLine = !green && !car.jumped && i === 0 && car.pos >= STOP[dir] - 4;
+            if (atLine) {
+              car.wait += dt;
+              if (car.wait >= patience) {
+                car.jumped = true;
+                chirp(360, 250, 0.16, "square", 0.05); // a short, annoyed horn
+              }
+            }
+            // A car is held only while it is still at (or creeping toward) its
+            // own line. Two pixels past it, the car is committed and the light
+            // no longer stops it - that is the "already in the crossing" rule.
+            // Widening this window let a player mash the light and freeze cars
+            // at the mouth of the box forever without ever colliding.
             let limit = Infinity;
-            if (!green && car.pos <= STOP[dir] + 2) limit = STOP[dir];
+            const line = STOP[dir] + creepOf(car, patience);
+            if (!green && !car.jumped && car.pos <= line + 2) limit = line;
             if (i > 0) limit = Math.min(limit, group[i - 1].pos - CAR_LEN - GAP);
             const room = limit - car.pos;
             if (room > 1) {
               car.v = Math.min(CRUISE, car.v + ACCEL * dt);
               car.pos = Math.min(limit, car.pos + car.v * dt);
+            } else if (room > 0) {
+              car.pos = limit; // settle onto the line without jittering
+              car.v = 0;
             } else {
               car.v = 0;
             }
             if (!car.counted && car.pos - CAR_LEN > (isHorizontal(dir) ? XC + HALF : YC + HALF)) {
               car.counted = true;
-              scoreRef.current += 1;
-              setScore(scoreRef.current);
+              // A driver who gave up and ran the red is a failure of your
+              // signalling, not a car you waved through, so it earns nothing.
+              // Without this, neglecting a road still paid out: on a quiet day
+              // the red-runners slipped across empty tarmac and an idle player
+              // could still scrape the daily goal.
+              if (!car.jumped) {
+                scoreRef.current += 1;
+                setScore(scoreRef.current);
+              }
             }
           }
         }
@@ -186,14 +296,32 @@ export default function RushGame() {
         outer: for (const a of hCars) {
           const ra = carRect(a);
           for (const b of vCars) {
-            if (rectsOverlap(ra, carRect(b))) {
+            const rb = carRect(b);
+            if (rectsOverlap(ra, rb)) {
               crashPairRef.current = [a, b];
-              shakeRef.current = 14;
-              endRun();
+              crashPtRef.current = {
+                x: (Math.max(ra.x, rb.x) + Math.min(ra.x + ra.w, rb.x + rb.w)) / 2,
+                y: (Math.max(ra.y, rb.y) + Math.min(ra.y + ra.h, rb.y + rb.h)) / 2,
+              };
+              startCrash();
               break outer;
             }
           }
         }
+      }
+
+      // wreckage keeps moving while the crash beat plays out, then the panel
+      if (phaseRef.current === "crashing") {
+        for (const d of debrisRef.current) {
+          d.x += d.vx * dt;
+          d.y += d.vy * dt;
+          d.vx *= 0.94;
+          d.vy *= 0.94;
+          d.rot += d.spin * dt;
+          d.life -= dt;
+        }
+        debrisRef.current = debrisRef.current.filter((d) => d.life > 0);
+        if ((now - crashAtRef.current) / 1000 >= CRASH_BEAT) endRun();
       }
 
       // ---- render ----
@@ -247,16 +375,89 @@ export default function RushGame() {
       ctx.stroke();
 
       // cars
+      const pulse = 0.5 + 0.5 * Math.sin(now / 90);
+      const wrecking = phaseRef.current === "crashing" || phaseRef.current === "crashed";
       for (const car of carsRef.current) {
         const r = carRect(car);
         const crashed = crashPairRef.current.includes(car);
-        ctx.fillStyle = crashed ? "#c96f4a" : COLORS[car.color % COLORS.length];
+
+        // an impatient driver warms up amber, then red, then jumps the light.
+        // This ring is the whole fairness contract of the red-run: you always
+        // get to see it coming and can flip the light before they move.
+        if (!crashed) {
+          const urgency = car.jumped ? 1 : Math.min(1, car.wait / (patienceRef.current || 1));
+          if (urgency > 0.55) {
+            const heat = (urgency - 0.55) / 0.45;
+            ctx.save();
+            ctx.globalAlpha = 0.28 + 0.55 * heat * pulse;
+            ctx.strokeStyle = car.jumped ? "#c0392b" : "#d9a441";
+            ctx.lineWidth = 2 + 3 * heat;
+            ctx.beginPath();
+            ctx.roundRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 9);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        // the two cars that touched flash so the eye lands on the cause
+        ctx.fillStyle = crashed
+          ? wrecking && pulse > 0.5
+            ? "#e8503a"
+            : "#c0392b"
+          : COLORS[car.color % COLORS.length];
         ctx.beginPath();
         ctx.roundRect(r.x, r.y, r.w, r.h, 6);
         ctx.fill();
-        ctx.strokeStyle = "rgba(41,36,32,0.35)";
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = crashed ? "rgba(41,36,32,0.7)" : "rgba(41,36,32,0.35)";
+        ctx.lineWidth = crashed ? 2.5 : 1.5;
         ctx.stroke();
+      }
+
+      // ---- the wreck ----
+      if (wrecking) {
+        const age = (now - crashAtRef.current) / 1000;
+        const { x: cx, y: cy } = crashPtRef.current;
+
+        // white-hot flash at the point of contact
+        if (age < 0.22) {
+          ctx.save();
+          ctx.globalAlpha = (1 - age / 0.22) * 0.85;
+          const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, 95);
+          g.addColorStop(0, "#fff6e8");
+          g.addColorStop(0.45, "rgba(232,80,58,0.5)");
+          g.addColorStop(1, "rgba(232,80,58,0)");
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 95, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // two staggered shockwaves rolling out of the crossing
+        for (const delay of [0, 0.14]) {
+          const a = age - delay;
+          if (a < 0 || a > 0.6) continue;
+          const k = a / 0.6;
+          ctx.save();
+          ctx.globalAlpha = (1 - k) * 0.55;
+          ctx.strokeStyle = "#c0392b";
+          ctx.lineWidth = 5 * (1 - k) + 1;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 20 + k * 140, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // paint flakes and glass
+        for (const d of debrisRef.current) {
+          ctx.save();
+          ctx.globalAlpha = Math.min(1, d.life * 1.7);
+          ctx.translate(d.x, d.y);
+          ctx.rotate(d.rot);
+          ctx.fillStyle = d.color;
+          ctx.fillRect(-d.size / 2, -d.size / 2, d.size, d.size);
+          ctx.restore();
+        }
       }
 
       // HUD text pinned to screen space - stays upright even when the world rotates
@@ -266,6 +467,17 @@ export default function RushGame() {
           ctx.fillStyle = "rgba(41,36,32,0.85)";
           ctx.font = "bold 42px ui-sans-serif, system-ui";
           ctx.fillText(String(scoreRef.current), elW / 2, 54);
+          // name the disaster while the wreck is still on screen, so the
+          // summary panel lands as a consequence and not as a surprise
+          if (phaseRef.current === "crashing") {
+            const age = (now - crashAtRef.current) / 1000;
+            ctx.save();
+            ctx.globalAlpha = Math.min(1, age / 0.14);
+            ctx.fillStyle = "#c0392b";
+            ctx.font = "bold 40px ui-sans-serif, system-ui";
+            ctx.fillText("PILE-UP!", elW / 2, elH / 2 - 8);
+            ctx.restore();
+          }
         } else {
           ctx.fillStyle = "rgba(41,36,32,0.75)";
           ctx.font = "bold 24px ui-sans-serif, system-ui";
@@ -368,7 +580,12 @@ export default function RushGame() {
                 already in the crossing can&apos;t stop - time your switches.
               </li>
               <li>
-                <span className="tx-ink font-semibold">4. Pass {DAILY_GOAL} cars</span> to clear
+                <span className="tx-ink font-semibold">4. Nobody waits forever.</span> Leave a
+                road on red too long and the front driver glows amber, creeps forward, then runs
+                the light. Red-runners don&apos;t score - you can&apos;t favour one road.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">5. Pass {DAILY_GOAL} cars</span> to clear
                 the daily goal. Then chase the high score.
               </li>
             </ol>
@@ -388,9 +605,23 @@ export default function RushGame() {
         </div>
       )}
 
-      {phase === "crashed" && (
+      {/* dismissed the summary to look at the wreck? this keeps the next run
+          one tap away so nobody gets stranded staring at a dead intersection */}
+      {phase === "crashed" && crashHidden && (
+        <button
+          onClick={startRun}
+          className="btn-ink fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-6 py-2.5 shadow-xl"
+        >
+          Again
+        </button>
+      )}
+
+      {phase === "crashed" && !crashHidden && (
         <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
-          <div className="panel text-center max-w-sm">
+          <div className="panel text-center max-w-sm relative">
+            <button className="panel-x" aria-label="Close" onClick={() => setCrashHidden(true)}>
+              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
+            </button>
             <div className="text-4xl mb-2">💥</div>
             <h2 className="font-serif text-2xl font-bold tx-ink mb-1">Pile-up!</h2>
             <p className="tx-muted mb-1">
