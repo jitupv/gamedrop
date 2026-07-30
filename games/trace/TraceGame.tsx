@@ -44,6 +44,7 @@ export default function TraceGame() {
   const [streak, setStreak] = useState(0);
   const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [dayDoneHidden, setDayDoneHidden] = useState(false);
   const [portrait, setPortrait] = useState(false);
   const [mode, setMode] = useState<Mode>("daily");
   const [hearts, setHearts] = useState(3);
@@ -51,6 +52,12 @@ export default function TraceGame() {
   const [cleared, setCleared] = useState(0);
   const [endlessBest, setEndlessBest] = useState(0);
   const [lastScore, setLastScore] = useState(0);
+
+  // a fresh round (including looping back to round 0 on replay) always
+  // starts with the day-done summary un-dismissed
+  useEffect(() => {
+    setDayDoneHidden(false);
+  }, [round]);
 
   const modeRef = useRef<Mode>("daily");
   const heartsRef = useRef(3);
@@ -495,9 +502,27 @@ export default function TraceGame() {
         </div>
       )}
 
-      {phase === "scored" && mode === "daily" && round >= 2 && (
+      {/* dismissed the summary to look at the board? this pill keeps the next
+          step one tap away so nobody gets stranded on a finished daily */}
+      {phase === "scored" && mode === "daily" && round >= 2 && dayDoneHidden && (
+        <button
+          onClick={startEndless}
+          className="btn-ink fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-6 py-2.5 shadow-xl"
+        >
+          Keep going ∞
+        </button>
+      )}
+
+      {phase === "scored" && mode === "daily" && round >= 2 && !dayDoneHidden && (
         <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
-          <div className="panel text-center max-w-sm">
+          <div className="panel text-center max-w-sm relative">
+            <button
+              className="panel-x"
+              aria-label="Close"
+              onClick={() => setDayDoneHidden(true)}
+            >
+              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
+            </button>
             <h2 className="font-serif text-xl font-bold tx-ink mb-1">
               TRACE #{num}: {avg}% from memory
             </h2>
@@ -506,7 +531,7 @@ export default function TraceGame() {
             </p>
             <div className="flex gap-3 justify-center">
               <button onClick={share} className="btn-ink px-5 py-2">
-                {copied ? "Shared ✓" : "Share result"}
+                {copied ? "Shared ✓" : "Challenge a friend"}
               </button>
               <button onClick={startEndless} className="btn-line px-5 py-2">
                 Keep going ∞

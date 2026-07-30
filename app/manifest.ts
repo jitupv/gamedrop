@@ -17,10 +17,31 @@ export default function manifest(): MetadataRoute.Manifest {
         type: "image/svg+xml",
         purpose: "any",
       },
+      // PNG fallbacks - some Android WebAPK installers don't rasterize SVG
+      // manifest icons reliably, so a home-screen install can silently fall
+      // back to a generic icon without these
+      {
+        src: "/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
       {
         src: "/icon-maskable.svg",
         sizes: "any",
         type: "image/svg+xml",
+        purpose: "maskable",
+      },
+      {
+        src: "/icon-192-maskable.png",
+        sizes: "192x192",
+        type: "image/png",
         purpose: "maskable",
       },
     ],

@@ -315,16 +315,28 @@ export default function PrismGame() {
       });
 
       {
+        // the receiver is a diamond in the accent color, unmistakable next to
+        // the flat gray walls even before it's reached - the goal should never
+        // be confused for an obstacle
         const x = ox + (lv.receiver.c + 0.5) * cell;
         const y = oy + (lv.receiver.r + 0.5) * cell;
-        const s = cell * 0.3;
+        const s = cell * 0.32;
+        const goalColor = solved ? "#3fbf7f" : ACCENT;
         ctx.beginPath();
-        ctx.roundRect(x - s, y - s, s * 2, s * 2, 8);
-        ctx.fillStyle = solved ? "rgba(63,191,127,0.35)" : "rgba(238,240,245,0.1)";
+        ctx.moveTo(x, y - s);
+        ctx.lineTo(x + s, y);
+        ctx.lineTo(x, y + s);
+        ctx.lineTo(x - s, y);
+        ctx.closePath();
+        ctx.fillStyle = solved ? "rgba(63,191,127,0.35)" : goalColor + "1f";
         ctx.fill();
-        ctx.strokeStyle = solved ? "#3fbf7f" : "rgba(238,240,245,0.3)";
+        ctx.strokeStyle = goalColor;
         ctx.lineWidth = 2.5;
         ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, s * 0.32, 0, Math.PI * 2);
+        ctx.fillStyle = goalColor;
+        ctx.fill();
       }
 
       {
@@ -570,7 +582,7 @@ export default function PrismGame() {
             `${LEVELS.reduce((a, l) => a + l.targets, 0)} targets hit`,
             ...(prior?.won ? [`Today's best: ${prior.score} mirrors`] : []),
           ]}
-          primary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
+          primary={{ label: copied ? "Shared ✓" : "Challenge a friend", onClick: share }}
           secondary={{ label: "Keep going ∞", onClick: startEndless }}
           pill={{ label: "Keep going ∞", onClick: startEndless }}
           footnote={

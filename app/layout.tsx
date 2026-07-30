@@ -31,6 +31,20 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: TITLE,
   description: DESC,
+  icons: {
+    // SVG first for modern browsers (crisp at any size); PNG fallbacks so the
+    // tab, bookmarks, and search-engine crawlers that don't render SVG
+    // favicons (Google's included) still get an icon instead of a blank one
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon-32.png",
+    apple: "/apple-icon.png",
+  },
   openGraph: {
     title: TITLE,
     description: DESC,

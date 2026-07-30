@@ -27,10 +27,9 @@ import { getStreak, loadResult } from "@/lib/sdk/storage";
 // `drop` = release order in the catalog story; the featured game is the newest drop
 const HOME: Record<
   string,
-  { accent: string; genre: string; desc: string; lede: [string, string, string]; diff: 1 | 2 | 3; time: string }
+  { genre: string; desc: string; lede: [string, string, string]; diff: 1 | 2 | 3; time: string }
 > = {
   prism: {
-    accent: "#ff2d6f",
     genre: "Laser logic",
     desc: "A laser fires from a fixed point. Bend it with mirrors through every target - on a strict budget.",
     lede: ["A laser fires.", "Bend it with mirrors.", "Every target, on a strict mirror budget."],
@@ -38,7 +37,6 @@ const HOME: Record<
     time: "2-4 min",
   },
   tilt: {
-    accent: "#ff6f61",
     genre: "Match puzzle",
     desc: "Slide entire rows and columns. Line up three. Chain combos before the moves run out.",
     lede: ["Swipe whole rows.", "Match the candy.", "Chain combos before the moves run out."],
@@ -46,7 +44,6 @@ const HOME: Record<
     time: "3-5 min",
   },
   orbit: {
-    accent: "#9d8cff",
     genre: "Physics",
     desc: "One probe, real gravity. Sling around planets and thread the needle - no direct shots.",
     lede: ["One probe, real gravity.", "Sling around planets.", "Direct shots don't count here."],
@@ -54,7 +51,6 @@ const HOME: Record<
     time: "2-4 min",
   },
   sonar: {
-    accent: "#3fd6c0",
     genre: "Memory maze",
     desc: "You're blind in a maze. Each ping lights it up for a heartbeat - remember the walls.",
     lede: ["Ping the dark.", "Memorize the maze.", "Escape in as few pings as your nerves allow."],
@@ -62,7 +58,6 @@ const HOME: Record<
     time: "2-4 min",
   },
   heist: {
-    accent: "#3fbf7f",
     genre: "Stealth logic",
     desc: "Plan the perfect route past patrolling guards - they move when you move.",
     lede: ["Case the museum.", "Plan every step.", "The guards move when you move."],
@@ -70,7 +65,6 @@ const HOME: Record<
     time: "3-6 min",
   },
   rush: {
-    accent: "#ffa23e",
     genre: "Reflex",
     desc: "You control the traffic lights, not the cars. Keep the intersection flowing - no crashes.",
     lede: ["You are the traffic light.", "Time every green.", "Don't let them touch."],
@@ -78,7 +72,6 @@ const HOME: Record<
     time: "2-3 min",
   },
   trace: {
-    accent: "#6fa8ff",
     genre: "Drawing",
     desc: "One stroke, no undo. Trace the target shape as precisely as your hand allows.",
     lede: ["See it once.", "Draw it blind.", "One stroke, no undo."],
@@ -148,7 +141,7 @@ export default function Home() {
   const chNum = num !== null ? `#${pad(num)}` : "#-";
 
   return (
-    <div className="hm" style={{ "--g": meta.accent } as React.CSSProperties}>
+    <div className="hm" style={{ "--g": today.accent } as React.CSSProperties}>
       <header className="hm-header">
         <div className="hm-wrap hm-header-inner">
           <Link href="/" className="hm-brand">
@@ -297,7 +290,7 @@ export default function Home() {
                 key={g.id}
                 href={g.path}
                 className="hm-card"
-                style={{ "--g": m.accent } as React.CSSProperties}
+                style={{ "--g": g.accent } as React.CSSProperties}
               >
                 <div className="hm-thumb">
                   {isFeatured && (
@@ -395,7 +388,7 @@ export default function Home() {
 
       {showAccount && <AccountModal onClose={() => setShowAccount(false)} />}
       {showBoard && (
-        <HomeBoard game={today} accent={meta.accent} onClose={() => setShowBoard(false)} />
+        <HomeBoard game={today} accent={today.accent} onClose={() => setShowBoard(false)} />
       )}
 
       <div className={`hm-sticky ${stickyHidden ? "is-off" : ""}`}>

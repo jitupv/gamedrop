@@ -673,7 +673,7 @@ export default function HeistGame() {
             `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"} total`,
             ...(prior?.won ? [`Today's best: ${prior.score} plans`] : []),
           ]}
-          primary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
+          primary={{ label: copied ? "Shared ✓" : "Challenge a friend", onClick: share }}
           secondary={{ label: "Keep going ∞", onClick: startEndless }}
           pill={{ label: "Keep going ∞", onClick: startEndless }}
           footnote={

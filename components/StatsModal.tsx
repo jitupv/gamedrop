@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faFire, faGlobe, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faFire, faGlobe, faPencil, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { GAMES } from "@/lib/games";
 import { todayKey } from "@/lib/sdk/daily";
 import { DayRecord, getAllResults, getStreak, maxStreak } from "@/lib/sdk/storage";
 import { Board, fetchBoard, leaderboardEnabled } from "@/lib/sdk/leaderboard";
+import AccountModal from "./AccountModal";
 
 // Your story with this game - the Wordle stats moment - plus the global board.
 export default function StatsModal({ gameId, onClose }: { gameId: string; onClose: () => void }) {
@@ -17,6 +18,10 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
   const [boardMode, setBoardMode] = useState<"daily" | "endless">("daily");
   // undefined = loading, null = fetch failed
   const [board, setBoard] = useState<Board | null | undefined>(undefined);
+  // players landing straight on a game page (a shared link, a bookmark) never
+  // see the homepage menu's "player card" - this is the only other door to
+  // renaming, reached right from your own row on the board you're looking at
+  const [showAccount, setShowAccount] = useState(false);
   const enabled = leaderboardEnabled();
 
   useEffect(() => {
@@ -55,6 +60,9 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
   const recent = [...records].slice(-5).reverse();
   const pct =
     board?.myRank && board.total > 0 ? Math.max(1, Math.ceil((board.myRank / board.total) * 100)) : null;
+  // if your row is already visible in the list, its own pencil covers renaming -
+  // only show a second one on the "You: #rank" summary when that row is NOT shown
+  const myRowVisible = board?.rows.some((r) => r.mine) ?? false;
 
   // portal to <body>: the blurred header would otherwise trap this "fixed"
   // overlay inside its own 48px box (backdrop-filter creates a containing block)
@@ -150,6 +158,16 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
                         {r.score.toLocaleString()}
                         {boardMode === "daily" ? ` ${meta.unit}` : ""}
                       </span>
+                      {r.mine && (
+                        <button
+                          type="button"
+                          className="lb-rename"
+                          aria-label="Change your name on the leaderboard"
+                          onClick={() => setShowAccount(true)}
+                        >
+                          <FontAwesomeIcon icon={faPencil} width={10} height={10} />
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ol>
@@ -162,11 +180,25 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
                         · top <b>{pct}%</b>
                       </>
                     )}
+                    {!myRowVisible && (
+                      <>
+                        {" "}
+                        <button
+                          type="button"
+                          className="lb-rename inline"
+                          aria-label="Change your name on the leaderboard"
+                          onClick={() => setShowAccount(true)}
+                        >
+                          <FontAwesomeIcon icon={faPencil} width={10} height={10} />
+                        </button>
+                      </>
+                    )}
                   </p>
                 )}
               </>
             )}
           </div>
+        {showAccount && <AccountModal onClose={() => setShowAccount(false)} />}
 
         {recent.length > 0 && (
           <div className="border-t pt-3 mt-4" style={{ borderColor: "var(--line)" }}>

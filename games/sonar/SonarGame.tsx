@@ -56,6 +56,7 @@ export default function SonarGame() {
   const [streak, setStreak] = useState(0);
   const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [dayDoneHidden, setDayDoneHidden] = useState(false);
   const [levelStats, setLevelStats] = useState<{ pings: number; time: number }[]>([]);
   const [mode, setMode] = useState<Mode>("daily");
   const [lantern, setLantern] = useState(0);
@@ -287,6 +288,7 @@ export default function SonarGame() {
             const totalPings = statsRef.current.reduce((a, s) => a + (s?.pings || 0), 0);
             saveResult("sonar", dayRef.current, { score: totalPings, won: true });
             setStreak(getStreak("sonar", dayRef.current));
+            setDayDoneHidden(false);
             setPhaseBoth("dayDone");
           } else {
             setPhaseBoth("levelDone");
@@ -585,9 +587,27 @@ export default function SonarGame() {
         />
       )}
 
-      {phase === "dayDone" && (
+      {/* dismissed the summary to look at the board? this pill keeps the next
+          step one tap away so nobody gets stranded on a finished daily */}
+      {phase === "dayDone" && dayDoneHidden && (
+        <button
+          onClick={startEndless}
+          className="btn-ink fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-6 py-2.5 shadow-xl"
+        >
+          Keep going ∞
+        </button>
+      )}
+
+      {phase === "dayDone" && !dayDoneHidden && (
         <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
-          <div className="panel text-center max-w-sm">
+          <div className="panel text-center max-w-sm relative">
+            <button
+              className="panel-x"
+              aria-label="Close"
+              onClick={() => setDayDoneHidden(true)}
+            >
+              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
+            </button>
             <div className="text-4xl mb-2">🌅</div>
             <h2 className="font-serif text-2xl font-bold tx-ink mb-1">Out of the dark</h2>
             <p className="tx-muted mb-1">
@@ -596,7 +616,7 @@ export default function SonarGame() {
             </p>
             <div className="flex gap-3 justify-center mt-4">
               <button onClick={share} className="btn-ink px-5 py-2.5">
-                {copied ? "Shared ✓" : "Share result"}
+                {copied ? "Shared ✓" : "Challenge a friend"}
               </button>
               <button onClick={startEndless} className="btn-line px-5 py-2.5">
                 Keep going ∞

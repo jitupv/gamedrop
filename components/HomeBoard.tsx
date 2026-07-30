@@ -143,6 +143,20 @@ export default function HomeBoard({
                   ))}
                 </ol>
               )}
+
+              {/* the top list is capped, but your own rank is never hidden -
+                  if you're outside it, this line still says where you stand */}
+              {board?.myRank && board.myRank > rows.length && (
+                <p className="hb-you">
+                  You: <b>#{board.myRank}</b> of {board.total.toLocaleString()}
+                  {board.myScore !== null && (
+                    <>
+                      {" "}
+                      · {board.myScore.toLocaleString()} {game.unit}
+                    </>
+                  )}
+                </p>
+              )}
             </>
           )}
 

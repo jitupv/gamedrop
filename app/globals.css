@@ -1039,6 +1039,13 @@ body {
   padding: 18px 24px 20px;
 }
 .hb-note { font-size: 12.5px; color: rgba(238, 240, 245, 0.5); }
+.hb-you {
+  text-align: center;
+  font-size: 12.5px;
+  color: rgba(238, 240, 245, 0.55);
+  padding: 10px 20px 0;
+}
+.hb-you b { color: #eef0f5; }
 .hb-cta {
   display: inline-flex;
   align-items: center;
@@ -1887,3 +1894,16 @@ body {
   margin-top: 8px;
 }
 .lb-you b { color: var(--ink); }
+.lb-rename {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--muted) 75%, transparent);
+  transition: background 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+}
+.lb-rename:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.lb-rename.inline { vertical-align: middle; margin-left: 2px; }

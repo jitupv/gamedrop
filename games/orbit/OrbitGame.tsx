@@ -761,7 +761,7 @@ export default function OrbitGame() {
           stars={starCount}
           score={{ label: "total launches", value: totalLaunches }}
           badges={[`${starCount}/3 bonus stars`, ...(totalLaunches <= 6 ? ["Ace pilot 🛰️"] : [])]}
-          primary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
+          primary={{ label: copied ? "Shared ✓" : "Challenge a friend", onClick: share }}
           secondary={{ label: "Keep going ∞", onClick: startEndless }}
           pill={{ label: "Keep going ∞", onClick: startEndless }}
           footnote={

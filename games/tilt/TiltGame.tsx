@@ -810,7 +810,7 @@ export default function TiltGame() {
           stars={Math.round(levelStars.reduce((a, b) => a + (b || 0), 0) / 3)}
           score={{ label: "total points", value: dayTotal }}
           badges={levelStars.map((s, i) => `L${i + 1}: ${"★".repeat(s)}`)}
-          primary={{ label: copied ? "Shared ✓" : "Share result", onClick: share }}
+          primary={{ label: copied ? "Shared ✓" : "Challenge a friend", onClick: share }}
           secondary={{ label: "Keep going ∞", onClick: startEndless }}
           pill={{ label: "Keep going ∞", onClick: startEndless }}
           footnote={

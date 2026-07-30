@@ -400,7 +400,7 @@ export default function RushGame() {
             <p className="text-xs tx-soft mb-4">Best today: {best}</p>
             <div className="flex gap-3 justify-center">
               <button onClick={share} className="btn-ink px-5 py-2.5">
-                {copied ? "Shared ✓" : "Share result"}
+                {copied ? "Shared ✓" : "Challenge a friend"}
               </button>
               <button onClick={startRun} className="btn-line px-5 py-2.5">
                 Again

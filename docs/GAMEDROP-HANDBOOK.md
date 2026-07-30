@@ -205,6 +205,7 @@ gamedrop/
 │   └── Analytics.tsx           # PostHog pageview tracker
 │
 ├── games/                      # one folder per game
+│   ├── prism/ engine.ts + PrismGame.tsx
 │   ├── tilt/  engine.ts + TiltGame.tsx
 │   ├── orbit/ engine.ts + OrbitGame.tsx
 │   ├── sonar/ engine.ts + SonarGame.tsx
@@ -347,12 +348,44 @@ getAccount() / attachEmail(email) / signOutAccount()
 
 ---
 
-## 7. The six live games
+## 7. The seven live games
 
 Each game is two files: `engine.ts` (pure, testable logic - no DOM) and `XGame.tsx`
 (the canvas render loop + React state + overlays). The engine emits data; the component
 draws it. This separation is why the games are solver-validatable and easy to reason
 about.
+
+### PRISM (Drop 7) - laser and mirrors. Fewer mirrors = better.
+- **Mechanic:** a laser fires from a fixed emitter and travels straight until it hits a
+  wall, leaves the grid, or is bent by a mirror you place. Tap a cell to cycle
+  empty -> `/` -> `\` -> empty; route the beam through every target and into the
+  receiver.
+- **Constraint:** a strict mirror budget (you can only have so many placed at once) and
+  a self-avoiding beam - it may never cross a cell it has already passed through. That
+  second rule is what keeps the solver fast (no infinite loops, no same-cell mirror
+  conflicts) and gives the player a visible tell: you can see your own trail and know
+  you can't route back through it.
+- **Generation - construct, don't search:** unlike ORBIT/HEIST/SONAR (generate a random
+  candidate, then search for proof it's solvable), PRISM builds a valid beam path
+  directly - walk a random-length run, bend, walk, bend, ending on the receiver - using
+  exactly the level's mirror budget. Targets are then dropped ON that path, which
+  guarantees a solution exists with zero search. Two quality bars still run a cheap
+  self-avoiding DFS: reject if a shortcut solves it in 0-1 mirrors, and reject if it's
+  solvable using two fewer mirrors than the budget (the board should need most of what
+  it hands out). Targets are also never placed on the emitter's first straight run
+  (segment 0) or on a bend cell - every target must cost at least one correct mirror to
+  reach, and a mirror and a target can never share a cell. **Real lesson learned:** the
+  first version generated boards by scattering targets/walls at random and searching for
+  a solution - as boards grew, valid candidates got exponentially rarer (up to 900ms and
+  an 8% fallback-to-a-trivial-board rate on later endless rounds). Constructing the
+  solution first instead of searching for one fixed generation to sub-millisecond and
+  zero fallbacks. A second early build was also solvable by a small child in seconds -
+  targets sitting on the straight pre-bend run were free, and mirrors are freely
+  repositionable with instant feedback, so trial and error alone solved it. Bigger
+  boards, the segment-0 target ban, and the stricter budget-2 quality bar fixed this.
+- **Daily:** 3 boards (8x8/9x9/10x9, budgets 4/5/6). **Endless:** a shared mirror bank
+  (like ORBIT's fuel) only partially refills each board; the run ends when the bank
+  can't afford the next board's budget.
 
 ### TILT (Drop 6) - match / slide puzzle. Score higher = better.
 - **Mechanic:** swipe the whole 6x6 board in a direction; all tiles slide; 3+ in a line
@@ -607,17 +640,21 @@ row - alternate families).
 
 > Build order suggestion for the next 6 drops (Drops 7-12): **PRISM, GLYPH, FLOW,
 > PULSE, SUMS, UNTANGLE** - one from each family, maximum variety, all high-confidence.
+> **PRISM has shipped as Drop 7 - see section 7 for the built version.** GLYPH was
+> built and then parked (files live in `docs/wip/glyph/`, not wired into the app) -
+> revisit it later if wanted.
 
 ### Family A - Logic and deduction (pure reasoning; best for the US/UK "smart" audience)
 
-**7. PRISM** - laser and mirrors.
+**7. PRISM** - laser and mirrors. **Shipped as Drop 7 - see section 7.**
 - Hook: place mirrors on a grid to bend a laser into every target.
 - Constraint: a limited number of mirrors; the beam must hit ALL targets with one path.
 - Daily: 3 boards, score = fewest mirrors used. Endless: boards grow, more targets.
 - Generation + solver: place targets, then search mirror placements (BFS/DFS over beam
   paths) to guarantee a solution exists within the mirror budget; reject boards solvable
   with 0-1 mirrors (too easy). Reuse the grid + seeded rng + fewest-move scoring like
-  HEIST.
+  HEIST. **As built: this spec's "generate then search" approach didn't scale - see
+  section 7 for why construct-then-place replaced it.**
 
 **8. GLYPH** - symbol code-break (language-free Wordle x Mastermind).
 - Hook: crack a hidden 4-symbol code in limited guesses; after each guess you learn how

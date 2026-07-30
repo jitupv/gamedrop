@@ -8,6 +8,7 @@ export interface GameMeta {
   unit: string; // what the daily score measures
   higherIsBetter: boolean;
   drop: number; // release order in the catalog - highest = the newest drop, always featured
+  accent: string; // per-game identity color - homepage art, share cards, OG images
 }
 
 // The featured game is simply the newest drop. When a new game ships, give it
@@ -29,6 +30,7 @@ export const GAMES: GameMeta[] = [
     path: "/prism",
     unit: "mirrors",
     higherIsBetter: false,
+    accent: "#ff2d6f",
   },
   {
     id: "tilt",
@@ -40,6 +42,7 @@ export const GAMES: GameMeta[] = [
     path: "/tilt",
     unit: "pts",
     higherIsBetter: true,
+    accent: "#ff6f61",
   },
   {
     id: "orbit",
@@ -51,6 +54,7 @@ export const GAMES: GameMeta[] = [
     path: "/orbit",
     unit: "launches",
     higherIsBetter: false,
+    accent: "#9d8cff",
   },
   {
     id: "sonar",
@@ -62,6 +66,7 @@ export const GAMES: GameMeta[] = [
     path: "/sonar",
     unit: "pings",
     higherIsBetter: false,
+    accent: "#3fd6c0",
   },
   {
     id: "heist",
@@ -73,6 +78,7 @@ export const GAMES: GameMeta[] = [
     path: "/heist",
     unit: "plans",
     higherIsBetter: false,
+    accent: "#3fbf7f",
   },
   {
     id: "rush",
@@ -84,6 +90,7 @@ export const GAMES: GameMeta[] = [
     path: "/rush",
     unit: "cars",
     higherIsBetter: true,
+    accent: "#ffa23e",
   },
   {
     id: "trace",
@@ -95,5 +102,6 @@ export const GAMES: GameMeta[] = [
     path: "/trace",
     unit: "%",
     higherIsBetter: true,
+    accent: "#6fa8ff",
   },
 ];
