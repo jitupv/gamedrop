@@ -468,14 +468,33 @@ export default function RushGame() {
           ctx.font = "bold 42px ui-sans-serif, system-ui";
           ctx.fillText(String(scoreRef.current), elW / 2, 54);
           // name the disaster while the wreck is still on screen, so the
-          // summary panel lands as a consequence and not as a surprise
+          // summary panel lands as a consequence and not as a surprise. This
+          // sits right on top of the crash point, where the cars, the rings
+          // and the shockwave are all some shade of red - red text there just
+          // vanished. A dark badge plate gives it a background that never
+          // matches whatever's under it, and a little pop-in keeps the "that
+          // just happened" jolt instead of reading as a calm label.
           if (phaseRef.current === "crashing") {
             const age = (now - crashAtRef.current) / 1000;
+            const t = Math.min(1, age / 0.18);
+            const eased = 1 - (1 - t) * (1 - t);
             ctx.save();
-            ctx.globalAlpha = Math.min(1, age / 0.14);
-            ctx.fillStyle = "#c0392b";
-            ctx.font = "bold 40px ui-sans-serif, system-ui";
-            ctx.fillText("PILE-UP!", elW / 2, elH / 2 - 8);
+            ctx.globalAlpha = eased;
+            ctx.translate(elW / 2, elH / 2 - 8);
+            ctx.scale(0.86 + 0.14 * eased, 0.86 + 0.14 * eased);
+            ctx.font = "900 38px ui-sans-serif, system-ui";
+            const label = "PILE-UP!";
+            const w = ctx.measureText(label).width;
+            ctx.fillStyle = "rgba(24,19,16,0.88)";
+            ctx.strokeStyle = "#e8503a";
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.roundRect(-w / 2 - 22, -32, w + 44, 56, 999);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = "#fff6ec";
+            ctx.textBaseline = "middle";
+            ctx.fillText(label, 0, -2);
             ctx.restore();
           }
         } else {
