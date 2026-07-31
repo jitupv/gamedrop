@@ -12,6 +12,18 @@ export interface Pt {
 }
 export type Stroke = Pt[];
 
+export interface TraceLevel {
+  target: Stroke[];
+  memorizeSeconds: number;
+  peekSeconds: number;
+  peekCost: number;
+  passAccuracy: number;
+  twoStarAccuracy: number;
+  threeStarAccuracy: number;
+}
+
+export const TOTAL_LEVELS = 100;
+
 type Rng = () => number;
 
 function circle(cx: number, cy: number, r: number): Stroke {
@@ -50,11 +62,11 @@ function zigzag(x0: number, y0: number, w: number, h: number, n: number): Stroke
   return pts;
 }
 
-function wave(x0: number, y0: number, w: number, amp: number): Stroke {
+function wave(x0: number, y0: number, w: number, amp: number, cycles = 3): Stroke {
   const pts: Pt[] = [];
   for (let i = 0; i <= 48; i++) {
     const t = i / 48;
-    pts.push({ x: x0 + t * w, y: y0 + Math.sin(t * Math.PI * 3) * amp });
+    pts.push({ x: x0 + t * w, y: y0 + Math.sin(t * Math.PI * cycles) * amp });
   }
   return pts;
 }
@@ -71,62 +83,76 @@ function spiral(cx: number, cy: number, rMax: number, turns: number): Stroke {
   return pts;
 }
 
-// three rounds, escalating: 1 shape → 2 shapes → complex composition
-export function genTargets(dayKey: string): Stroke[][] {
-  const rng: Rng = mulberry32(hashSeed(`trace:${dayKey}`));
-  const pos = (mx: number) => ({
-    x: mx + rng() * (CW - mx * 2),
-    y: mx * 0.7 + rng() * (CH - mx * 1.4),
-  });
-
-  const simple = (): Stroke => {
-    const p = pos(200);
-    const r = 90 + rng() * 70;
-    const kind = Math.floor(rng() * 4);
-    if (kind === 0) return circle(p.x, p.y, r);
-    if (kind === 1) return polygon(p.x, p.y, r, 3 + Math.floor(rng() * 2), rng() * Math.PI);
-    if (kind === 2) return star(p.x, p.y, r, rng() * Math.PI);
-    return polygon(p.x, p.y, r, 4, rng() * Math.PI);
-  };
-
-  const linework = (): Stroke => {
-    const y = 150 + rng() * 300;
-    if (rng() < 0.5) return zigzag(180 + rng() * 80, y, 400 + rng() * 120, 90 + rng() * 60, 5 + Math.floor(rng() * 3));
-    return wave(160 + rng() * 80, y, 460 + rng() * 140, 60 + rng() * 50);
-  };
-
-  const round1: Stroke[] = [simple()];
-
-  const a = circle(240 + rng() * 80, 200 + rng() * 120, 70 + rng() * 40);
-  const b = polygon(580 + rng() * 100, 330 + rng() * 120, 80 + rng() * 40, 3 + Math.floor(rng() * 3), rng() * Math.PI);
-  const round2: Stroke[] = [a, b];
-
-  const round3: Stroke[] =
-    rng() < 0.5
-      ? [spiral(CW / 2 + (rng() - 0.5) * 160, CH / 2 + (rng() - 0.5) * 80, 130 + rng() * 60, 2.5), linework()]
-      : [star(260 + rng() * 80, 240 + rng() * 100, 90 + rng() * 40, rng() * Math.PI), linework(), circle(660 + rng() * 60, 200 + rng() * 160, 55 + rng() * 30)];
-
-  return [round1, round2, round3];
+function strokeCountFor(levelIdx: number): number {
+  if (levelIdx < 10) return 1 + Math.floor(levelIdx / 3);
+  return levelIdx < 55 ? 4 : 5;
 }
 
-// endless: one sketch at a time, growing more tangled with depth
-export function genSketch(seedStr: string, depth: number): Stroke[] {
-  const rng = mulberry32(hashSeed(seedStr));
-  const n = 1 + Math.min(4, Math.floor(depth / 2));
-  const strokes: Stroke[] = [];
-  for (let k = 0; k < n; k++) {
-    const kind = Math.floor(rng() * 6);
-    const cx = 170 + rng() * (CW - 340);
-    const cy = 130 + rng() * (CH - 260);
-    const r = 60 + rng() * 80;
-    if (kind === 0) strokes.push(circle(cx, cy, r));
-    else if (kind === 1) strokes.push(polygon(cx, cy, r, 3 + Math.floor(rng() * 3), rng() * Math.PI));
-    else if (kind === 2) strokes.push(star(cx, cy, r, rng() * Math.PI));
-    else if (kind === 3) strokes.push(zigzag(cx - r, cy, r * 2, 60 + rng() * 50, 4 + Math.floor(rng() * 3)));
-    else if (kind === 4) strokes.push(wave(cx - r, cy, r * 2, 40 + rng() * 40));
-    else strokes.push(spiral(cx, cy, r, 2 + rng()));
+export function genProgressLevel(levelIdx: number, seasonKey = "all"): TraceLevel {
+  const safeIndex = Math.max(0, Math.min(TOTAL_LEVELS - 1, levelIdx));
+  const difficulty = safeIndex / (TOTAL_LEVELS - 1);
+  const rng: Rng = mulberry32(hashSeed(`trace:weekly:v1:${seasonKey}:L${safeIndex + 1}`));
+  const count = strokeCountFor(safeIndex);
+  const slotWidth = (CW - 160) / count;
+  const target: Stroke[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const cx = 80 + slotWidth * (i + 0.5) + (rng() - 0.5) * slotWidth * 0.18;
+    const cy = 110 + rng() * (CH - 220);
+    const r = Math.min(92, slotWidth * 0.34) * (0.72 + rng() * 0.24);
+    const kindCount = safeIndex < 3 ? 2 : safeIndex < 10 ? 4 : safeIndex < 35 ? 5 : 6;
+    const kind = (Math.floor(rng() * kindCount) + i + safeIndex) % kindCount;
+
+    if (kind === 0) {
+      target.push(circle(cx, cy, r));
+    } else if (kind === 1) {
+      const sideRange = 2 + Math.floor(difficulty * 4);
+      target.push(polygon(cx, cy, r, 3 + Math.floor(rng() * sideRange), rng() * Math.PI));
+    } else if (kind === 2) {
+      target.push(star(cx, cy, r, rng() * Math.PI));
+    } else if (kind === 3) {
+      const width = slotWidth * 0.72;
+      const height = Math.min(110, r * 1.35);
+      target.push(
+        zigzag(
+          cx - width / 2,
+          cy - height / 2,
+          width,
+          height,
+          4 + Math.floor(difficulty * 8) + Math.floor(rng() * 2)
+        )
+      );
+    } else if (kind === 4) {
+      const width = slotWidth * 0.76;
+      target.push(
+        wave(
+          cx - width / 2,
+          cy,
+          width,
+          Math.min(64, r * 0.62),
+          2 + Math.floor(difficulty * 3)
+        )
+      );
+    } else {
+      target.push(spiral(cx, cy, r, 1.8 + difficulty * 2.2 + rng() * 0.35));
+    }
   }
-  return strokes;
+
+  return {
+    target,
+    memorizeSeconds: Math.round((4.5 - difficulty * 2.7) * 10) / 10,
+    peekSeconds: Math.round((1.4 - difficulty * 0.5) * 10) / 10,
+    peekCost: 8,
+    passAccuracy: 35,
+    twoStarAccuracy: 55,
+    threeStarAccuracy: 75,
+  };
+}
+
+export function starsForAccuracy(level: TraceLevel, accuracy: number): number {
+  if (accuracy >= level.threeStarAccuracy) return 3;
+  if (accuracy >= level.twoStarAccuracy) return 2;
+  return accuracy >= level.passAccuracy ? 1 : 0;
 }
 
 // ---------- scoring ----------

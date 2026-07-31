@@ -2,182 +2,77 @@
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faXmark } from "@fortawesome/free-solid-svg-icons";
-
 import { useEffect, useRef, useState } from "react";
-import { CH, CW, Stroke, genSketch, genTargets, similarity } from "./engine";
+import {
+  CH,
+  CW,
+  Stroke,
+  TOTAL_LEVELS,
+  TraceLevel,
+  genProgressLevel,
+  similarity,
+  starsForAccuracy,
+} from "./engine";
 import Celebration from "@/components/Celebration";
-import { challengeNumber, todayKey } from "@/lib/sdk/daily";
-import ModeSwitch from "@/components/ModeSwitch";
-import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import GuideLink from "@/components/GuideLink";
-import { reportEndlessBest } from "@/lib/sdk/leaderboard";
-import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { reportLevelProgress } from "@/lib/sdk/leaderboard";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, inScreenSpace, pointToGame } from "@/lib/sdk/viewport";
-import Countdown from "@/components/Countdown";
-import PuzzleRating from "@/components/PuzzleRating";
+import {
+  readWeeklyProgress,
+  weekLabel,
+  weeklySeed,
+  writeWeeklyProgress,
+} from "@/lib/sdk/weekly";
 
-const MEMORIZE_S = 3;
-const PEEK_S = 1.2;
-const PEEK_COST = 8;
-
-type Phase = "memorize" | "draw" | "peek" | "scored" | "dayDone" | "runOver";
-type Mode = "daily" | "endless";
-const FAIL_LINE = 45; // endless: below this accuracy, a heart burns
-
-function readTraceEndlessBest(): number {
-  try {
-    return Number(window.localStorage.getItem("gd:trace:endless-best") || 0);
-  } catch {
-    return 0;
-  }
-}
+type Phase = "memorize" | "draw" | "peek" | "levelDone" | "failed" | "allDone";
 
 export default function TraceGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [num, setNum] = useState(0);
-  const [round, setRound] = useState(0);
+  const [level, setLevel] = useState<TraceLevel | null>(null);
+  const [levelIdx, setLevelIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>("memorize");
-  const [scores, setScores] = useState<number[]>([]);
+  const [completed, setCompleted] = useState(0);
   const [hasInk, setHasInk] = useState(false);
   const [peeked, setPeeked] = useState(false);
-  const [streak, setStreak] = useState(0);
-  const [copied, setCopied] = useState(false);
+  const [lastAccuracy, setLastAccuracy] = useState(0);
+  const [lastStars, setLastStars] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
-  const [dayDoneHidden, setDayDoneHidden] = useState(false);
-  const [portrait, setPortrait] = useState(false);
-  const [mode, setMode] = useState<Mode>("daily");
-  const [hearts, setHearts] = useState(3);
-  const [endlessIdx, setEndlessIdx] = useState(0);
-  const [cleared, setCleared] = useState(0);
-  const [endlessBest, setEndlessBest] = useState(0);
-  const [lastScore, setLastScore] = useState(0);
 
-  // a fresh round (including looping back to round 0 on replay) always
-  // starts with the day-done summary un-dismissed
-  useEffect(() => {
-    setDayDoneHidden(false);
-  }, [round]);
-
-  const modeRef = useRef<Mode>("daily");
-  const heartsRef = useRef(3);
-  const endlessIdxRef = useRef(0);
-  const clearedRef = useRef(0);
-  const runSeedRef = useRef("");
   const portraitRef = useRef(false);
   const viewRef = useRef<View | null>(null);
-  const targetsRef = useRef<Stroke[][]>([]);
-  const strokesRef = useRef<Stroke[]>([]);
-  const curStrokeRef = useRef<Stroke | null>(null);
+  const levelRef = useRef<TraceLevel | null>(null);
+  const levelIdxRef = useRef(0);
+  const completedRef = useRef(0);
   const phaseRef = useRef<Phase>("memorize");
-  const roundRef = useRef(0);
   const phaseStartRef = useRef(0);
   const peekedRef = useRef(false);
-  const scoresRef = useRef<number[]>([]);
-  const dayRef = useRef("");
+  const strokesRef = useRef<Stroke[]>([]);
+  const curStrokeRef = useRef<Stroke | null>(null);
+  const seasonRef = useRef(weeklySeed("trace"));
 
-  const setPhaseBoth = (p: Phase) => {
-    phaseRef.current = p;
+  const setPhaseBoth = (next: Phase) => {
+    phaseRef.current = next;
     phaseStartRef.current = performance.now();
-    setPhase(p);
+    setPhase(next);
   };
 
-  const startRound = (idx: number) => {
-    roundRef.current = idx;
+  const startLevel = (idx: number) => {
+    const safeIdx = Math.max(0, Math.min(TOTAL_LEVELS - 1, idx));
+    if (safeIdx > completedRef.current) return;
+    const next = genProgressLevel(safeIdx, seasonRef.current);
+    levelRef.current = next;
+    levelIdxRef.current = safeIdx;
     strokesRef.current = [];
     curStrokeRef.current = null;
     peekedRef.current = false;
-    setPeeked(false);
+    setLevel(next);
+    setLevelIdx(safeIdx);
     setHasInk(false);
-    setRound(idx);
+    setPeeked(false);
+    setLastAccuracy(0);
+    setLastStars(0);
     setPhaseBoth("memorize");
-  };
-
-  const loadSketch = (i: number) => {
-    endlessIdxRef.current = i;
-    setEndlessIdx(i);
-    targetsRef.current = [genSketch(`${runSeedRef.current}:${i}`, i)];
-    startRound(0);
-  };
-
-  const startEndless = () => {
-    modeRef.current = "endless";
-    setMode("endless");
-    setEndlessBest(readTraceEndlessBest());
-    heartsRef.current = 3;
-    setHearts(3);
-    clearedRef.current = 0;
-    setCleared(0);
-    runSeedRef.current = `trace:endless:${Math.random().toString(36).slice(2, 9)}`;
-    loadSketch(0);
-  };
-
-  const backToDaily = () => {
-    modeRef.current = "daily";
-    setMode("daily");
-    targetsRef.current = genTargets(dayRef.current);
-    scoresRef.current = [];
-    setScores([]);
-    startRound(0);
-  };
-
-  const submit = () => {
-    if (phaseRef.current !== "draw" || strokesRef.current.length === 0) return;
-    const target = targetsRef.current[roundRef.current];
-    let s = similarity(target, strokesRef.current);
-    if (peekedRef.current) s = Math.max(0, Math.round((s - PEEK_COST) * 10) / 10);
-
-    blip(600, 0.07, "triangle", 0.05);
-    if (modeRef.current === "endless") {
-      setLastScore(s);
-      if (s < FAIL_LINE) {
-        chirp(400, 170, 0.32, "sawtooth", 0.06);
-        heartsRef.current -= 1;
-        setHearts(heartsRef.current);
-        if (heartsRef.current <= 0) {
-          if (clearedRef.current > readTraceEndlessBest()) {
-            try {
-              window.localStorage.setItem("gd:trace:endless-best", String(clearedRef.current));
-              reportEndlessBest("trace", clearedRef.current);
-            } catch {}
-            setEndlessBest(clearedRef.current);
-          }
-          setPhaseBoth("runOver");
-          return;
-        }
-      } else {
-        clearedRef.current += 1;
-        setCleared(clearedRef.current);
-        if (clearedRef.current > readTraceEndlessBest()) {
-          try {
-            window.localStorage.setItem("gd:trace:endless-best", String(clearedRef.current));
-            reportEndlessBest("trace", clearedRef.current);
-          } catch {}
-          setEndlessBest(clearedRef.current);
-        }
-      }
-      setPhaseBoth("scored");
-      return;
-    }
-
-    scoresRef.current = [...scoresRef.current];
-    scoresRef.current[roundRef.current] = s;
-    setScores([...scoresRef.current]);
-    if (roundRef.current >= 2) {
-      const avg = Math.round((scoresRef.current.reduce((a, b) => a + b, 0) / 3) * 10) / 10;
-      saveResult("trace", dayRef.current, { score: avg, won: true }, true);
-      setStreak(getStreak("trace", dayRef.current));
-      setPhaseBoth("scored");
-    } else {
-      setPhaseBoth("scored");
-    }
-  };
-
-  const peek = () => {
-    if (phaseRef.current !== "draw" || peekedRef.current) return;
-    peekedRef.current = true;
-    setPeeked(true);
-    setPhaseBoth("peek");
   };
 
   const clearInk = () => {
@@ -187,32 +82,63 @@ export default function TraceGame() {
     setHasInk(false);
   };
 
+  const peek = () => {
+    if (phaseRef.current !== "draw" || peekedRef.current) return;
+    peekedRef.current = true;
+    setPeeked(true);
+    setPhaseBoth("peek");
+  };
+
+  const submit = () => {
+    const current = levelRef.current;
+    if (!current || phaseRef.current !== "draw" || strokesRef.current.length === 0) return;
+
+    let accuracy = similarity(current.target, strokesRef.current);
+    if (peekedRef.current) {
+      accuracy = Math.max(0, Math.round((accuracy - current.peekCost) * 10) / 10);
+    }
+    const stars = starsForAccuracy(current, accuracy);
+    setLastAccuracy(accuracy);
+    setLastStars(stars);
+    blip(600, 0.07, "triangle", 0.05);
+
+    if (stars === 0) {
+      chirp(400, 170, 0.32, "sawtooth", 0.06);
+      setPhaseBoth("failed");
+      return;
+    }
+
+    const nextCompleted = Math.max(completedRef.current, levelIdxRef.current + 1);
+    completedRef.current = nextCompleted;
+    setCompleted(nextCompleted);
+    writeWeeklyProgress("trace", nextCompleted);
+    reportLevelProgress("trace", nextCompleted);
+    setPhaseBoth(levelIdxRef.current >= TOTAL_LEVELS - 1 ? "allDone" : "levelDone");
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    dayRef.current = todayKey();
-    setNum(challengeNumber("trace"));
-    setStreak(getStreak("trace", dayRef.current));
-    targetsRef.current = genTargets(dayRef.current);
-    startRound(0);
-    if (!window.localStorage.getItem("gd:trace:help")) setShowHelp(true);
+    const saved = readWeeklyProgress("trace");
+    completedRef.current = saved;
+    setCompleted(saved);
+    startLevel(Math.min(saved, TOTAL_LEVELS - 1));
+    if (!window.localStorage.getItem("gd:trace:help:v2")) setShowHelp(true);
 
-    // portrait phones: rotate the sheet 90° for a full-height drawing area
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
       portraitRef.current = mq.matches;
-      setPortrait(mq.matches);
     };
     applyOrientation();
     mq.addEventListener("change", applyOrientation);
 
     const toGame = (e: PointerEvent) => {
-      const v = viewRef.current;
-      if (!v) return { x: -9999, y: -9999 };
-      return pointToGame(v, canvas, e.clientX, e.clientY, CW);
+      const view = viewRef.current;
+      if (!view) return { x: -9999, y: -9999 };
+      return pointToGame(view, canvas, e.clientX, e.clientY, CW);
     };
     const onDown = (e: PointerEvent) => {
       if (phaseRef.current !== "draw") return;
@@ -222,11 +148,11 @@ export default function TraceGame() {
       setHasInk(true);
     };
     const onMove = (e: PointerEvent) => {
-      const cur = curStrokeRef.current;
-      if (!cur || phaseRef.current !== "draw") return;
-      const p = toGame(e);
-      const lastP = cur[cur.length - 1];
-      if (Math.hypot(p.x - lastP.x, p.y - lastP.y) > 3) cur.push(p);
+      const stroke = curStrokeRef.current;
+      if (!stroke || phaseRef.current !== "draw") return;
+      const point = toGame(e);
+      const last = stroke[stroke.length - 1];
+      if (Math.hypot(point.x - last.x, point.y - last.y) > 3) stroke.push(point);
     };
     const onUp = () => {
       curStrokeRef.current = null;
@@ -234,44 +160,49 @@ export default function TraceGame() {
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
-
-    let raf = 0;
+    canvas.addEventListener("pointercancel", onUp);
 
     const drawStrokes = (strokes: Stroke[], color: string, width: number) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = width;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      for (const st of strokes) {
-        if (st.length < 2) {
-          if (st.length === 1) {
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.arc(st[0].x, st[0].y, width / 2, 0, Math.PI * 2);
-            ctx.fill();
-          }
+      for (const stroke of strokes) {
+        if (stroke.length === 1) {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(stroke[0].x, stroke[0].y, width / 2, 0, Math.PI * 2);
+          ctx.fill();
           continue;
         }
+        if (stroke.length < 2) continue;
         ctx.beginPath();
-        ctx.moveTo(st[0].x, st[0].y);
-        for (const p of st) ctx.lineTo(p.x, p.y);
+        ctx.moveTo(stroke[0].x, stroke[0].y);
+        for (const point of stroke) ctx.lineTo(point.x, point.y);
         ctx.stroke();
       }
     };
 
+    let raf = 0;
     const draw = (now: number) => {
-      const target = targetsRef.current[roundRef.current] || [];
-      const phaseAge = (now - phaseStartRef.current) / 1000;
-
-      if (phaseRef.current === "memorize" && phaseAge >= MEMORIZE_S) setPhaseBoth("draw");
-      if (phaseRef.current === "peek" && phaseAge >= PEEK_S) setPhaseBoth("draw");
+      const current = levelRef.current;
+      if (!current) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      const age = (now - phaseStartRef.current) / 1000;
+      if (phaseRef.current === "memorize" && age >= current.memorizeSeconds) {
+        setPhaseBoth("draw");
+      }
+      if (phaseRef.current === "peek" && age >= current.peekSeconds) {
+        setPhaseBoth("draw");
+      }
 
       const view = applyView(canvas, ctx, CW, CH, portraitRef.current, "#f9f5ec");
       viewRef.current = view;
       ctx.fillStyle = "#f9f5ec";
       ctx.fillRect(0, 0, CW, CH);
 
-      // faint paper grid
       ctx.strokeStyle = "rgba(41,36,32,0.045)";
       ctx.lineWidth = 1;
       for (let x = 60; x < CW; x += 60) {
@@ -288,20 +219,23 @@ export default function TraceGame() {
       }
 
       const showTarget =
-        phaseRef.current === "memorize" || phaseRef.current === "peek" || phaseRef.current === "scored" || phaseRef.current === "dayDone";
-      if (showTarget) drawStrokes(target, "rgba(41,36,32,0.9)", 6);
+        phaseRef.current === "memorize" ||
+        phaseRef.current === "peek" ||
+        phaseRef.current === "levelDone" ||
+        phaseRef.current === "failed" ||
+        phaseRef.current === "allDone";
+      if (showTarget) drawStrokes(current.target, "rgba(41,36,32,0.9)", 6);
       drawStrokes(strokesRef.current, "rgba(180,83,9,0.85)", 5);
 
       if (phaseRef.current === "memorize") {
-        const remain = Math.ceil(MEMORIZE_S - phaseAge);
-        // countdown pinned to screen space - always upright, always top-right
-        inScreenSpace(ctx, view, (elW) => {
+        const remain = Math.max(1, Math.ceil(current.memorizeSeconds - age));
+        inScreenSpace(ctx, view, (width) => {
           ctx.fillStyle = "rgba(41,36,32,0.8)";
           ctx.textAlign = "center";
           ctx.font = "bold 46px ui-sans-serif, system-ui";
-          ctx.fillText(String(remain), elW - 56, 66);
+          ctx.fillText(String(remain), width - 56, 66);
           ctx.font = "600 15px ui-sans-serif, system-ui";
-          ctx.fillText("memorize it", elW - 56, 92);
+          ctx.fillText("memorize", width - 56, 92);
         });
       }
 
@@ -315,79 +249,36 @@ export default function TraceGame() {
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const avg = scores.length === 3 ? Math.round((scores.reduce((a, b) => a + b, 0) / 3) * 10) / 10 : 0;
-  const prior = typeof window !== "undefined" && dayRef.current ? loadResult("trace", dayRef.current) : null;
-
-  const share = async () => {
-    // one dot per sketch: green = sharp memory, yellow = fuzzy, red = abstract art
-    const dot = (s: number) => (s >= 75 ? "🟢" : s >= 50 ? "🟡" : "🔴");
-    const text = buildShare("TRACE", num, [
-      scores.map((s) => `${dot(s)}${s}%`).join(" "),
-      `✏️ ${avg}% from memory`,
-    ], challengeUrl(avg));
-    const outcome = await shareResult(text, {
-      game: "TRACE",
-      num,
-      emoji: "✏️",
-      accent: "#6fa8ff",
-      headline: `${avg}% accuracy`,
-      lines: [scores.map((s) => `${dot(s)}${s}%`).join(" ")],
-      streak,
-    });
-    setCopied(outcome !== "failed");
-    window.setTimeout(() => setCopied(false), 2000);
-  };
-
-  const restartDay = () => {
-    scoresRef.current = [];
-    setScores([]);
-    startRound(0);
-  };
+  const nextUnlocked = levelIdx < TOTAL_LEVELS - 1 && levelIdx + 1 <= completed;
 
   return (
     <div className="relative w-full h-full flex flex-col">
-      <ModeSwitch endless={mode === "endless"} onDaily={backToDaily} onEndless={startEndless} />
       <div className="stat-bar shrink-0">
         <div className="stat">
-          <span className="lab">Sketch</span>
-          <span className="val">{mode === "endless" ? `#${endlessIdx + 1}` : `${round + 1}/3`}</span>
+          <span className="lab">Level</span>
+          <span className="val">{levelIdx + 1}/{TOTAL_LEVELS}</span>
         </div>
-        {mode === "daily" &&
-          [0, 1, 2].map((i) => (
-            <div className="stat" key={i}>
-              <span className="lab">#{i + 1}</span>
-              <span className={`val${scores[i] === undefined ? " tx-soft" : ""}`}>
-                {scores[i] === undefined ? "-" : `${scores[i]}%`}
-              </span>
-            </div>
-          ))}
-        {mode === "endless" ? (
-          <>
-            <div className="stat">
-              <span className="lab">Hearts</span>
-              <span className={`val${hearts <= 1 ? " warn" : ""}`}>{"♥".repeat(hearts) || "-"}</span>
-            </div>
-            <div className="stat">
-              <span className="lab">Cleared</span>
-              <span className="val">{cleared}</span>
-            </div>
-            <div className="stat">
-              <span className="lab">Best</span>
-              <span className="val warn">{endlessBest}</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="stat">
-              <span className="lab">Streak</span>
-              <span className="val">{streak}🔥</span>
-            </div>
-          </>
-        )}
+        <div className="stat">
+          <span className="lab">Pass</span>
+          <span className="val">{level?.passAccuracy ?? 35}%</span>
+        </div>
+        <div className="stat">
+          <span className="lab">2 stars</span>
+          <span className="val">{level?.twoStarAccuracy ?? 55}%</span>
+        </div>
+        <div className="stat">
+          <span className="lab">3 stars</span>
+          <span className="val">{level?.threeStarAccuracy ?? 75}%</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Week</span>
+          <span className="val">{weekLabel()}</span>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0">
@@ -395,18 +286,46 @@ export default function TraceGame() {
       </div>
 
       <div className="mt-2 shrink-0 flex items-center justify-center gap-2">
-        <button onClick={clearInk} disabled={phase !== "draw" || !hasInk} className="btn-line px-4 py-2 disabled:opacity-40">
+        <button
+          onClick={() => startLevel(levelIdx - 1)}
+          disabled={levelIdx === 0}
+          className="btn-line px-3 py-2 disabled:opacity-40"
+        >
+          Prev
+        </button>
+        <button
+          onClick={clearInk}
+          disabled={phase !== "draw" || !hasInk}
+          className="btn-line px-3 py-2 disabled:opacity-40"
+        >
           Clear
         </button>
-        <button onClick={peek} disabled={phase !== "draw" || peeked} className="btn-line px-4 py-2 disabled:opacity-40">
-          Peek −{PEEK_COST}%
+        <button
+          onClick={peek}
+          disabled={phase !== "draw" || peeked}
+          className="btn-line px-3 py-2 disabled:opacity-40"
+        >
+          Peek -{level?.peekCost ?? 8}%
         </button>
-        <button onClick={submit} disabled={phase !== "draw" || !hasInk} className="btn-ink px-7 py-2 disabled:opacity-40">
-          Done ✏️
+        <button
+          onClick={submit}
+          disabled={phase !== "draw" || !hasInk}
+          className="btn-ink px-5 py-2 disabled:opacity-40"
+        >
+          Done
+        </button>
+        <button
+          onClick={() => startLevel(levelIdx + 1)}
+          disabled={!nextUnlocked}
+          className="btn-line px-3 py-2 disabled:opacity-40"
+        >
+          Next
         </button>
       </div>
       <p className="hint">
-        memorize for 3s · redraw in place · <button onClick={() => setShowHelp(true)}>how to play?</button>
+        memorize for {level?.memorizeSeconds ?? 4.5}s - redraw in the same place -{" "}
+        <button onClick={() => startLevel(levelIdx)}>restart level</button> -{" "}
+        <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
       {showHelp && (
@@ -418,7 +337,7 @@ export default function TraceGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:trace:help", "1");
+                  window.localStorage.setItem("gd:trace:help:v2", "1");
                 } catch {}
               }}
             >
@@ -427,131 +346,79 @@ export default function TraceGame() {
             <h2 className="font-serif text-2xl font-bold tx-ink mb-4 text-center">How to play</h2>
             <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
-                <span className="tx-ink font-semibold">1. A drawing appears for 3 seconds.</span>{" "}
-                Burn it into your memory.
+                <span className="tx-ink font-semibold">1. Memorize the black drawing.</span>{" "}
+                It disappears when the timer ends.
               </li>
               <li>
-                <span className="tx-ink font-semibold">2. It vanishes - now redraw it</span> in
-                the same place, same size, freehand.
+                <span className="tx-ink font-semibold">2. Redraw it from memory</span> in the
+                same place and at the same size. Use separate strokes when the target has them.
               </li>
               <li>
-                <span className="tx-ink font-semibold">3. Press Done</span> to see the original
-                over your attempt and get your accuracy score. One Peek per sketch costs {PEEK_COST}%.
+                <span className="tx-ink font-semibold">3. Press Done for an accuracy score.</span>{" "}
+                Earn 3 stars at 75%, 2 at 55%, or 1 star and pass at 35%. Below 35% must be retried.
               </li>
               <li>
-                <span className="tx-ink font-semibold">4. Three sketches a day,</span> harder
-                each time. Your day score is the average.
+                <span className="tx-ink font-semibold">4. Peek once if you need it.</span>{" "}
+                The target briefly returns, but 8% is deducted from your accuracy.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">5. Complete all 100 levels.</span>{" "}
+                The drawings gain more strokes and harder shapes while memorization time shrinks.
+                Every Monday changes the shapes and positions. Weekly depth is ranked,
+                while your career best remains saved.
               </li>
             </ol>
             <button
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:trace:help", "1");
+                  window.localStorage.setItem("gd:trace:help:v2", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
             >
-              Got it - sharpen the pencil
+              Got it - start drawing
             </button>
             <GuideLink game="trace" />
           </div>
         </div>
       )}
 
-      {phase === "scored" && mode === "endless" && (
-        <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
-          <div className="panel text-center max-w-sm">
-            <h2 className="font-serif text-xl font-bold tx-ink mb-1">
-              {lastScore >= FAIL_LINE ? `${lastScore}% - it lives on` : `${lastScore}% - 💔 heart lost`}
-            </h2>
-            <p className="text-xs tx-muted mb-3">
-              {"♥".repeat(hearts)} · {cleared} cleared · best {endlessBest}
-            </p>
-            <button onClick={() => loadSketch(endlessIdx + 1)} className="btn-ink px-6 py-2">
-              Sketch #{endlessIdx + 2} - more tangled →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {phase === "runOver" && (
+      {phase === "failed" && (
         <Celebration
-          title="Out of hearts!"
-          stars={cleared >= 10 ? 3 : cleared >= 5 ? 2 : cleared >= 2 ? 1 : 0}
-          score={{ label: "sketches from memory", value: cleared }}
-          badges={[cleared >= endlessBest && cleared > 0 ? "New best! 🏆" : `Best run: ${endlessBest}`]}
-          primary={{ label: "Run it back →", onClick: startEndless }}
-          secondary={{ label: "← Daily", onClick: backToDaily }}
-          footnote={`Stay above ${FAIL_LINE}% or lose a heart. The shapes only get stranger.`}
+          title={`Level ${levelIdx + 1} needs another try`}
+          stars={0}
+          score={{ label: "accuracy", value: lastAccuracy, decimals: 1, suffix: "%" }}
+          badges={[`Pass at ${level?.passAccuracy ?? 35}%`]}
+          primary={{ label: "Retry level", onClick: () => startLevel(levelIdx) }}
+          secondary={levelIdx > 0 ? { label: "Previous level", onClick: () => startLevel(levelIdx - 1) } : undefined}
+          footnote="Black is the target; amber is your attempt. Match position, size, and every stroke."
         />
       )}
 
-      {phase === "scored" && mode === "daily" && round < 2 && (
-        <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
-          <div className="panel text-center max-w-sm">
-            <h2 className="font-serif text-xl font-bold tx-ink mb-1">
-              {scores[round] >= 75 ? "Photographic! " : scores[round] >= 50 ? "Not bad - " : "Rough - "}
-              {scores[round]}%
-            </h2>
-            <p className="text-xs tx-muted mb-3">ink = original · amber = you</p>
-            <button onClick={() => startRound(round + 1)} className="btn-ink px-6 py-2">
-              Sketch {round + 2} - harder →
-            </button>
-          </div>
-        </div>
+      {phase === "levelDone" && (
+        <Celebration
+          title={`Level ${levelIdx + 1} traced!`}
+          stars={lastStars}
+          score={{ label: "accuracy", value: lastAccuracy, decimals: 1, suffix: "%" }}
+          badges={[`${completed}/${TOTAL_LEVELS} this week`, peeked ? "Peek used: -8%" : "No peek"]}
+          primary={{ label: `Level ${levelIdx + 2} ->`, onClick: () => startLevel(levelIdx + 1) }}
+          secondary={{ label: "Replay level", onClick: () => startLevel(levelIdx) }}
+          footnote="Stars: 3 at 75%, 2 at 55%, 1 at 35%. Below 35% does not unlock the next level."
+        />
       )}
 
-      {/* dismissed the summary to look at the board? this pill keeps the next
-          step one tap away so nobody gets stranded on a finished daily */}
-      {phase === "scored" && mode === "daily" && round >= 2 && dayDoneHidden && (
-        <button
-          onClick={startEndless}
-          className="btn-ink fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-6 py-2.5 shadow-xl"
-        >
-          Keep going ∞
-        </button>
-      )}
-
-      {phase === "scored" && mode === "daily" && round >= 2 && !dayDoneHidden && (
-        <div className="scrim fixed inset-0 flex items-end justify-center z-50 p-4 pb-10">
-          <div className="panel text-center max-w-sm relative">
-            <button
-              className="panel-x"
-              aria-label="Close"
-              onClick={() => setDayDoneHidden(true)}
-            >
-              <FontAwesomeIcon icon={faXmark} width={12} height={12} />
-            </button>
-            <h2 className="font-serif text-xl font-bold tx-ink mb-1">
-              TRACE #{num}: {avg}% from memory
-            </h2>
-            <p className="text-xs tx-muted mb-3">
-              {scores.map((s) => `${s}%`).join(" · ")}
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={share} className="btn-ink px-5 py-2">
-                {copied ? "Shared ✓" : "Challenge a friend"}
-              </button>
-              <button onClick={startEndless} className="btn-line px-5 py-2">
-                Keep going ∞
-              </button>
-            </div>
-            <p className="text-xs tx-soft mt-3">
-              {endlessBest > 0
-                ? `Your endless best: ${endlessBest} sketches - beat it?`
-                : "Endless sketches, three hearts - how far can you go?"}
-            </p>
-            <button onClick={restartDay} className="text-xs tx-muted underline underline-offset-2 mt-2">
-              or replay today&apos;s sketches
-            </button>
-            {prior?.won && <p className="text-xs tx-soft mt-2">Today&apos;s best: {prior.score}%</p>}
-            <PuzzleRating game="trace" />
-            <p className="text-xs tx-soft mt-2">
-              <Countdown prefix="New sketches in" />
-            </p>
-          </div>
-        </div>
+      {phase === "allDone" && (
+        <Celebration
+          title="All 100 weekly TRACE levels complete!"
+          stars={lastStars}
+          score={{ label: "levels completed", value: TOTAL_LEVELS }}
+          badges={[`${lastAccuracy}% on Level 100`, "Maximum leaderboard progress"]}
+          primary={{ label: "Replay Level 100", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
+          secondary={{ label: "Back to Level 1", onClick: () => startLevel(0) }}
+          footnote="Your TRACE weekly leaderboard score is 100 completed levels."
+          feedback="trace"
+        />
       )}
     </div>
   );

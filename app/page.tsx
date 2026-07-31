@@ -161,7 +161,7 @@ export default function Home() {
               <FontAwesomeIcon icon={faCircleUser} width={15} height={15} />
             </button>
             <ThemeToggle />
-            {streak > 0 && (
+            {today.unit !== "levels" && streak > 0 && (
               <span className="hm-streak" title="Your daily streak">
                 <FontAwesomeIcon icon={faFire} width={12} height={12} /> {streak}
               </span>
@@ -250,10 +250,18 @@ export default function Home() {
                 </button>
               </div>
               <p className="hm-meta">
-                Challenge <b>{chNum}</b> - same puzzle for everyone · fresh puzzle at midnight{" "}
-                <b className="hm-count">{midnight}</b>
+                {today.unit === "levels" ? (
+                  <>
+                    <b>100 weekly levels</b> - new shared layouts every Monday · ranked by weekly depth
+                  </>
+                ) : (
+                  <>
+                    Challenge <b>{chNum}</b> - same puzzle for everyone · fresh puzzle at midnight{" "}
+                    <b className="hm-count">{midnight}</b>
+                  </>
+                )}
               </p>
-              {streak > 0 && (
+              {today.unit !== "levels" && streak > 0 && (
                 <p className="hm-streaknote">
                   <b>
                     <FontAwesomeIcon icon={faFire} width={12} height={12} /> {streak}-day streak
@@ -276,7 +284,7 @@ export default function Home() {
       <section className="hm-vault hm-wrap" id="vault">
         <div className="hm-vhead">
           <h2>The Vault</h2>
-          <p>Every game we&apos;ve ever dropped - each with its own daily challenge and endless mode.</p>
+          <p>Every game we&apos;ve ever dropped - each with its own challenge and leaderboard.</p>
         </div>
 
         <div className="hm-grid">
@@ -322,7 +330,11 @@ export default function Home() {
                       {m.time}
                     </span>
                     <span className="hm-playlink">
-                      {isDone ? "Endless mode" : "Play daily"}{" "}
+                      {g.unit === "levels"
+                        ? "Play levels"
+                        : isDone
+                          ? "Endless mode"
+                          : "Play daily"}{" "}
                       <FontAwesomeIcon icon={faArrowRight} width={11} height={11} />
                     </span>
                   </div>
@@ -341,14 +353,14 @@ export default function Home() {
             <span className="d">Original games built from scratch - never reruns, never clones.</span>
           </div>
           <div className="hm-fact">
-            <span className="k">Midnight</span>
-            <span className="v">Every game gets a fresh challenge</span>
-            <span className="d">Same puzzle for the whole world. One shot at the daily.</span>
+            <span className="k">Every Monday</span>
+            <span className="v">Every game gets a fresh 100-level run</span>
+            <span className="d">The same remixed levels for everyone, with a new weekly race.</span>
           </div>
           <div className="hm-fact">
             <span className="k">The Vault</span>
             <span className="v">Old drops stay playable</span>
-            <span className="d">Daily + endless mode in every game, forever free.</span>
+            <span className="d">Every game stays playable, with progress saved on this device.</span>
           </div>
         </div>
       </section>
@@ -395,9 +407,11 @@ export default function Home() {
         <div className="hm-sticky-inner">
           <div className="s-info">
             <span className="s-name">
-              {today.name} - Challenge {chNum}
+              {today.unit === "levels" ? `${today.name} - 100 levels` : `${today.name} - Challenge ${chNum}`}
             </span>
-            <span className="s-sub">Fresh puzzle in {midnight}</span>
+            <span className="s-sub">
+              {today.unit === "levels" ? "New layouts every Monday" : `Fresh puzzle in ${midnight}`}
+            </span>
           </div>
           <Link href={today.path} className="s-btn">
             Play now

@@ -4,65 +4,48 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faXmark } from "@fortawesome/free-solid-svg-icons";
 
 import { useEffect, useRef, useState } from "react";
-import { Cell, HeistCfg, HeistLevel, LEVELS, caughtAt, endlessCfg, genLevel, genLevelFrom, guardAt } from "./engine";
-import { challengeNumber, todayKey } from "@/lib/sdk/daily";
-import ModeSwitch from "@/components/ModeSwitch";
-import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
+import { Cell, HeistLevel, TOTAL_LEVELS, caughtAt, genProgressLevel, guardAt, levelCfg } from "./engine";
 import GuideLink from "@/components/GuideLink";
-import { reportEndlessBest } from "@/lib/sdk/leaderboard";
-import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { reportLevelProgress } from "@/lib/sdk/leaderboard";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { View, applyView, pointToGame } from "@/lib/sdk/viewport";
 import Celebration from "@/components/Celebration";
+import {
+  readWeeklyProgress,
+  weekLabel,
+  weeklySeed,
+  writeWeeklyProgress,
+} from "@/lib/sdk/weekly";
 
 const CW = 900;
 const CH = 600;
 const TICK_MS = 240;
 
-type Phase = "plan" | "run" | "caught" | "levelDone" | "dayDone";
-type Mode = "daily" | "endless";
-
-function readEndlessBest(): number {
-  try {
-    return Number(window.localStorage.getItem("gd:heist:endless-best") || 0);
-  } catch {
-    return 0;
-  }
-}
+type Phase = "plan" | "run" | "caught" | "levelDone" | "allDone";
 
 export default function HeistGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [num, setNum] = useState(0);
   const [levelIdx, setLevelIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>("plan");
-  const [mode, setMode] = useState<Mode>("daily");
   const [attempts, setAttempts] = useState(0);
   const [pathLen, setPathLen] = useState(1);
   const [canGo, setCanGo] = useState(false);
-  const [streak, setStreak] = useState(0);
-  const [copied, setCopied] = useState(false);
+  const [completed, setCompleted] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
-  const [dayStats, setDayStats] = useState<{ gems: number; attempts: number; stars: number }[]>([]);
-  const [cleared, setCleared] = useState(0); // endless: museums cleared this run
-  const [endlessBest, setEndlessBest] = useState(0);
   const [lastStars, setLastStars] = useState(1);
   const [lastGems, setLastGems] = useState(0);
 
   const levelRef = useRef<HeistLevel | null>(null);
-  const cfgRef = useRef<HeistCfg>(LEVELS[0]);
   const pathRef = useRef<Cell[]>([]);
   const phaseRef = useRef<Phase>("plan");
-  const modeRef = useRef<Mode>("daily");
   const levelIdxRef = useRef(0);
   const attemptsRef = useRef(0);
-  const clearedRef = useRef(0);
-  const endlessSeedRef = useRef("");
+  const completedRef = useRef(0);
   const runRef = useRef<{ t: number; lastTick: number; collected: Set<number> } | null>(null);
   const portraitRef = useRef(false);
   const viewRef = useRef<View | null>(null);
   const dragRef = useRef(false);
-  const dayRef = useRef("");
-  const statsRef = useRef<{ gems: number; attempts: number; stars: number }[]>([]);
+  const seasonRef = useRef(weeklySeed("heist"));
 
   const setPhaseBoth = (p: Phase) => {
     phaseRef.current = p;
@@ -74,40 +57,20 @@ export default function HeistGame() {
     return { cell, ox: (CW - cell * lv.cols) / 2, oy: (CH - cell * lv.rows) / 2 };
   };
 
-  const loadLevel = (lv: HeistLevel, cfg: HeistCfg, idx: number) => {
+  const startLevel = (idx: number) => {
+    const safeIdx = Math.max(0, Math.min(TOTAL_LEVELS - 1, idx));
+    if (safeIdx > completedRef.current) return;
+    const lv = genProgressLevel(safeIdx, seasonRef.current);
     levelRef.current = lv;
-    cfgRef.current = cfg;
-    levelIdxRef.current = idx;
+    levelIdxRef.current = safeIdx;
     pathRef.current = [{ ...lv.start }];
     attemptsRef.current = 0;
     runRef.current = null;
-    setLevelIdx(idx);
+    setLevelIdx(safeIdx);
     setAttempts(0);
     setPathLen(1);
     setCanGo(false);
     setPhaseBoth("plan");
-  };
-
-  const startLevel = (idx: number) => {
-    modeRef.current = "daily";
-    setMode("daily");
-    loadLevel(genLevel(dayRef.current, idx), LEVELS[idx], idx);
-  };
-
-  const startEndless = () => {
-    modeRef.current = "endless";
-    setMode("endless");
-    clearedRef.current = 0;
-    setCleared(0);
-    endlessSeedRef.current = `heist:endless:${Math.random().toString(36).slice(2, 9)}`;
-    const cfg = endlessCfg(0);
-    loadLevel(genLevelFrom(`${endlessSeedRef.current}:0`, cfg), cfg, 0);
-  };
-
-  const nextEndless = () => {
-    const i = levelIdxRef.current + 1;
-    const cfg = endlessCfg(i);
-    loadLevel(genLevelFrom(`${endlessSeedRef.current}:${i}`, cfg), cfg, i);
   };
 
   const syncPathState = () => {
@@ -144,12 +107,11 @@ export default function HeistGame() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    dayRef.current = todayKey();
-    setNum(challengeNumber("heist"));
-    setStreak(getStreak("heist", dayRef.current));
-    setEndlessBest(readEndlessBest());
-    startLevel(0);
-    if (!window.localStorage.getItem("gd:heist:help")) setShowHelp(true);
+    const saved = readWeeklyProgress("heist");
+    completedRef.current = saved;
+    setCompleted(saved);
+    startLevel(Math.min(saved, TOTAL_LEVELS - 1));
+    if (!window.localStorage.getItem("gd:heist:help:v2")) setShowHelp(true);
 
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -222,36 +184,23 @@ export default function HeistGame() {
     let raf = 0;
 
     const finishLevel = (gems: number) => {
-      // every escape now carries all gems - stars rate how few plans it took
-      const stars = attemptsRef.current === 1 ? 3 : attemptsRef.current <= 3 ? 2 : 1;
+      // The HEIST constraint is planning efficiency: first plan = 3 stars,
+      // second plan = 2, and three or more plans = 1.
+      const stars = attemptsRef.current === 1 ? 3 : attemptsRef.current === 2 ? 2 : 1;
       setLastStars(stars);
       setLastGems(gems);
 
-      if (modeRef.current === "endless") {
-        clearedRef.current += 1;
-        setCleared(clearedRef.current);
-        if (clearedRef.current > readEndlessBest()) {
-          try {
-            window.localStorage.setItem("gd:heist:endless-best", String(clearedRef.current));
-            reportEndlessBest("heist", clearedRef.current);
-          } catch {}
-          setEndlessBest(clearedRef.current);
-        }
-        setPhaseBoth("levelDone");
+      const nextCompleted = Math.max(completedRef.current, levelIdxRef.current + 1);
+      completedRef.current = nextCompleted;
+      setCompleted(nextCompleted);
+      writeWeeklyProgress("heist", nextCompleted);
+      void reportLevelProgress("heist", nextCompleted);
+
+      if (levelIdxRef.current >= TOTAL_LEVELS - 1) {
+        setPhaseBoth("allDone");
         return;
       }
-
-      statsRef.current = [...statsRef.current];
-      statsRef.current[levelIdxRef.current] = { gems, attempts: attemptsRef.current, stars };
-      setDayStats([...statsRef.current]);
-      if (levelIdxRef.current >= LEVELS.length - 1) {
-        const totalAttempts = statsRef.current.reduce((a, s) => a + (s?.attempts || 0), 0);
-        saveResult("heist", dayRef.current, { score: totalAttempts, won: true });
-        setStreak(getStreak("heist", dayRef.current));
-        setPhaseBoth("dayDone");
-      } else {
-        setPhaseBoth("levelDone");
-      }
+      setPhaseBoth("levelDone");
     };
 
     const draw = (now: number) => {
@@ -481,49 +430,19 @@ export default function HeistGame() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const cfg = mode === "endless" ? endlessCfg(levelIdx) : LEVELS[levelIdx];
-  const totalAttempts = dayStats.reduce((a, s) => a + (s?.attempts || 0), 0);
-  const totalGems = dayStats.reduce((a, s) => a + (s?.gems || 0), 0);
-  const maxGems = LEVELS.reduce((a, l) => a + l.gems, 0);
-  const prior = typeof window !== "undefined" && dayRef.current ? loadResult("heist", dayRef.current) : null;
-
-  const share = async () => {
-    // one line per museum: gems taken vs left behind, plans spent
-    const lines = dayStats.map((s, i) => {
-      const got = s?.gems ?? 0;
-      const max = LEVELS[i].gems;
-      return `${"💎".repeat(got)}${"◇".repeat(Math.max(0, max - got))} 🕶️${s?.attempts ?? 0}`;
-    });
-    const text = buildShare("HEIST", num, [
-      ...lines,
-      `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"} · the perfect crime?`,
-    ], challengeUrl(totalAttempts));
-    const outcome = await shareResult(text, {
-      game: "HEIST",
-      num,
-      emoji: "💎",
-      accent: "#3fbf7f",
-      headline: `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"}`,
-      lines,
-      streak,
-    });
-    setCopied(outcome !== "failed");
-    window.setTimeout(() => setCopied(false), 2000);
-  };
-
-  const restartDay = () => {
-    statsRef.current = [];
-    setDayStats([]);
-    startLevel(0);
-  };
+  const cfg = levelCfg(levelIdx);
+  const nextUnlocked = levelIdx < TOTAL_LEVELS - 1 && levelIdx + 1 <= completed;
 
   return (
     <div className="relative w-full h-full flex flex-col">
-      <ModeSwitch endless={mode === "endless"} onDaily={() => startLevel(0)} onEndless={startEndless} />
       <div className="stat-bar shrink-0">
         <div className="stat">
-          <span className="lab">Museum</span>
-          <span className="val">{mode === "endless" ? `#${levelIdx + 1}` : `${levelIdx + 1}/3`}</span>
+          <span className="lab">Level</span>
+          <span className="val">{levelIdx + 1}/{TOTAL_LEVELS}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Gems</span>
+          <span className="val">{cfg.gems}</span>
         </div>
         <div className="stat">
           <span className="lab">Guards</span>
@@ -537,25 +456,6 @@ export default function HeistGame() {
           <span className="lab">Steps</span>
           <span className="val">{pathLen - 1}</span>
         </div>
-        {mode === "endless" ? (
-          <>
-            <div className="stat">
-              <span className="lab">Cleared</span>
-              <span className="val">{cleared}</span>
-            </div>
-            <div className="stat">
-              <span className="lab">Best run</span>
-              <span className="val warn">{endlessBest}</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="stat">
-              <span className="lab">Streak</span>
-              <span className="val">{streak}🔥</span>
-            </div>
-          </>
-        )}
       </div>
 
       <div className="flex-1 min-h-0">
@@ -563,22 +463,31 @@ export default function HeistGame() {
       </div>
 
       <div className="mt-2 shrink-0 flex items-center justify-center gap-2">
+        <button
+          onClick={() => startLevel(levelIdx - 1)}
+          disabled={levelIdx === 0 || phase === "run"}
+          className="btn-line px-3 py-2 disabled:opacity-40"
+        >
+          Prev
+        </button>
         <button onClick={resetPath} disabled={phase !== "plan"} className="btn-line px-4 py-2 disabled:opacity-40">
           Reset
         </button>
-        <button onClick={go} disabled={!canGo || phase !== "plan"} className="btn-ink px-7 py-2 disabled:opacity-40">
-          GO 🕶️
+        <button onClick={go} disabled={!canGo || phase !== "plan"} className="btn-ink px-6 py-2 disabled:opacity-40">
+          GO
+        </button>
+        <button
+          onClick={() => startLevel(levelIdx + 1)}
+          disabled={!nextUnlocked || phase === "run"}
+          className="btn-line px-3 py-2 disabled:opacity-40"
+        >
+          Next
         </button>
       </div>
       <p className="hint">
-        you are 🥷 · grab <b>every</b> 🔶 then reach the EXIT · each tile only <b>once</b>, no
-        doubling back · faint 👮 = where guards will be at your plan&apos;s last step ·{" "}
-        {mode === "daily" ? (
-          <button onClick={startEndless}>endless mode →</button>
-        ) : (
-          <button onClick={() => startLevel(0)}>← back to daily</button>
-        )}{" "}
-        · <button onClick={() => setShowHelp(true)}>how to play?</button>
+        grab <b>all {cfg.gems} gems</b>, then reach EXIT · each tile only <b>once</b> · guards move
+        when you move · first-plan escape earns 3 stars · weekly remix {weekLabel()} ·{" "}
+        <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
       {showHelp && (
@@ -590,7 +499,7 @@ export default function HeistGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:heist:help", "1");
+                  window.localStorage.setItem("gd:heist:help:v2", "1");
                 } catch {}
               }}
             >
@@ -599,12 +508,13 @@ export default function HeistGame() {
             <h2 className="font-serif text-2xl font-bold tx-ink mb-4 text-center">How to play</h2>
             <ol className="space-y-3 tx-muted text-sm leading-relaxed">
               <li>
-                <span className="tx-ink font-semibold">1. You are the ninja 🥷 - plan the whole robbery first.</span>{" "}
-                Drag (or tap cell by cell) from your 🥷 to the EXIT - through the gems 🔶 if you dare.
+                <span className="tx-ink font-semibold">1. Plan the whole robbery first.</span>{" "}
+                Drag or tap cell by cell from the thief to collect <b>every visible gem</b>, then
+                finish on EXIT. The door stays locked until your route includes them all.
               </li>
               <li>
-                <span className="tx-ink font-semibold">2. Guards 👮 patrol the dotted loops</span> -
-                one step for every step you take. The{" "}
+                <span className="tx-ink font-semibold">2. Guards patrol the dotted loops.</span>{" "}
+                Each guard moves one tile for every tile you move. The{" "}
                 <span className="tx-ink font-semibold">dashed ghost</span> shows where each guard
                 will be at your plan&apos;s final step. Tap your path&apos;s head to undo.
               </li>
@@ -613,17 +523,22 @@ export default function HeistGame() {
                 once it starts. Same cell as a guard = caught = replan.
               </li>
               <li>
-                <span className="tx-ink font-semibold">4. The vault is locked.</span> Your route
-                must collect <b>every gem</b> before the exit opens, and{" "}
-                <b>each tile can be stepped on only once</b> - no doubling back to wait out
-                guards. Fewest plans = the perfect crime.
+                <span className="tx-ink font-semibold">4. Each tile can be used only once.</span>{" "}
+                You cannot double back to wait out guards. Finish on your first plan for 3 stars,
+                your second for 2 stars, or your third or later for 1 star.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">5. Complete all 100 levels.</span>{" "}
+                Later museums add longer routes, more walls, more gems, and up to six guards.
+                Every Monday brings new placements. Weekly depth is ranked, while your
+                career best remains saved.
               </li>
             </ol>
             <button
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:heist:help", "1");
+                  window.localStorage.setItem("gd:heist:help:v2", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
@@ -635,53 +550,33 @@ export default function HeistGame() {
         </div>
       )}
 
-      {phase === "levelDone" && mode === "daily" && (
+      {phase === "levelDone" && (
         <Celebration
-          title="Clean getaway!"
+          title={`Level ${levelIdx + 1} complete!`}
           stars={lastStars}
           score={{ label: "gems secured", value: lastGems }}
           badges={[
-            `${dayStats[levelIdx]?.attempts || 1} plan${(dayStats[levelIdx]?.attempts || 1) === 1 ? " - first try ✓" : "s"}`,
-            lastGems >= cfg.gems ? "Every gem 💎" : `${lastGems}/${cfg.gems} gems`,
+            attempts === 1 ? "First plan — 3 stars" : `${attempts} plans`,
+            `${completed}/${TOTAL_LEVELS} this week`,
           ]}
-          primary={{ label: `Museum ${levelIdx + 2} - more guards →`, onClick: () => startLevel(levelIdx + 1) }}
-          footnote="Same museums for everyone today."
+          primary={{ label: `Level ${levelIdx + 2} →`, onClick: () => startLevel(levelIdx + 1) }}
+          secondary={{ label: "Replay level", onClick: () => startLevel(levelIdx) }}
+          footnote="Every level has a tested safe route."
         />
       )}
 
-      {phase === "levelDone" && mode === "endless" && (
+      {phase === "allDone" && (
         <Celebration
-          title={`Museum #${levelIdx + 1} cleared!`}
+          title="All 100 weekly HEIST levels complete!"
           stars={lastStars}
-          score={{ label: "museums this run", value: cleared }}
+          score={{ label: "levels completed", value: TOTAL_LEVELS }}
           badges={[
-            cleared > 0 && cleared >= endlessBest ? "Best run 🏆" : `Best: ${endlessBest}`,
-            `Next: ${endlessCfg(levelIdx + 1).guards} guards`,
+            `${attempts} plan${attempts === 1 ? "" : "s"} on Level 100`,
+            "Maximum leaderboard progress",
           ]}
-          primary={{ label: `Museum #${levelIdx + 2} →`, onClick: nextEndless }}
-          secondary={{ label: "Stop the run", onClick: () => startLevel(0) }}
-          footnote="It only gets meaner from here."
-        />
-      )}
-
-      {phase === "dayDone" && (
-        <Celebration
-          title={`HEIST #${num} complete!`}
-          stars={Math.round(dayStats.reduce((a, s) => a + (s?.stars || 0), 0) / 3)}
-          score={{ label: `gems of ${maxGems}`, value: totalGems }}
-          badges={[
-            `${totalAttempts} plan${totalAttempts === 1 ? "" : "s"} total`,
-            ...(prior?.won ? [`Today's best: ${prior.score} plans`] : []),
-          ]}
-          primary={{ label: copied ? "Shared ✓" : "Challenge a friend", onClick: share }}
-          secondary={{ label: "Keep going ∞", onClick: startEndless }}
-          pill={{ label: "Keep going ∞", onClick: startEndless }}
-          footnote={
-            endlessBest > 0
-              ? `Your endless best: ${endlessBest} museums - beat it?`
-              : "Endless museums keep growing - how deep can you go?"
-          }
-          countdown
+          primary={{ label: "Replay Level 100", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
+          secondary={{ label: "Back to Level 1", onClick: () => startLevel(0) }}
+          footnote="Your HEIST weekly leaderboard score is 100 completed levels."
           feedback="heist"
         />
       )}

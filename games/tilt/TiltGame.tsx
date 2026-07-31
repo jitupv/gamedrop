@@ -10,22 +10,25 @@ import {
   MoveResult,
   SIZE,
   Step,
+  TOTAL_LEVELS,
   TiltState,
   applyMove,
   hasAnyMove,
-  newBoard,
   newLevel,
   previewMove,
 } from "./engine";
-import { challengeNumber, todayKey } from "@/lib/sdk/daily";
-import ModeSwitch from "@/components/ModeSwitch";
-import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import GuideLink from "@/components/GuideLink";
-import { reportEndlessBest } from "@/lib/sdk/leaderboard";
-import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { reportLevelProgress } from "@/lib/sdk/leaderboard";
 import { isMuted } from "@/lib/sdk/sound";
 import { applyView } from "@/lib/sdk/viewport";
 import Celebration from "@/components/Celebration";
+import { hashSeed } from "@/lib/sdk/rng";
+import {
+  readWeeklyProgress,
+  weekLabel,
+  weeklySeed,
+  writeWeeklyProgress,
+} from "@/lib/sdk/weekly";
 
 const TILE = 80;
 const GAP = 8;
@@ -82,16 +85,7 @@ function drawSymbol(ctx: CanvasRenderingContext2D, kind: number, cx: number, cy:
   }
 }
 
-type Phase = "playing" | "levelClear" | "levelFail" | "dayDone" | "endlessOver";
-type Mode = "daily" | "endless";
-
-function readTiltEndlessBest(): number {
-  try {
-    return Number(window.localStorage.getItem("gd:tilt:endless-best") || 0);
-  } catch {
-    return 0;
-  }
-}
+type Phase = "playing" | "levelClear" | "levelFail" | "allDone";
 
 interface TileV {
   id: number;
@@ -129,6 +123,24 @@ const cellX = (c: number) => PAD + c * (TILE + GAP);
 const cellY = (r: number) => PAD + r * (TILE + GAP);
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
+function transformCell(c: number, r: number, variant: number): { c: number; r: number } {
+  let tc = c;
+  let tr = r;
+  if (variant & 4) [tc, tr] = [tr, tc];
+  if (variant & 1) tc = SIZE - 1 - tc;
+  if (variant & 2) tr = SIZE - 1 - tr;
+  return { c: tc, r: tr };
+}
+
+function toLogicalDir(dir: Dir, variant: number): Dir {
+  let dx = dir.dx;
+  let dy = dir.dy;
+  if (variant & 1) dx = -dx as Dir["dx"];
+  if (variant & 2) dy = -dy as Dir["dy"];
+  if (variant & 4) [dx, dy] = [dy, dx];
+  return { dx, dy };
+}
+
 class Sfx {
   private ctx: AudioContext | null = null;
   ensure() {
@@ -165,21 +177,14 @@ class Sfx {
 
 export default function TiltGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [num, setNum] = useState(0);
   const [levelIdx, setLevelIdx] = useState(0);
   const [score, setScore] = useState(0);
   const [movesLeft, setMovesLeft] = useState(LEVELS[0].moves);
   const [phase, setPhase] = useState<Phase>("playing");
-  const [dayTotal, setDayTotal] = useState(0);
-  const [streak, setStreak] = useState(0);
-  const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  const [levelStars, setLevelStars] = useState<number[]>([]);
-  const [mode, setMode] = useState<Mode>("daily");
-  const [endlessBest, setEndlessBest] = useState(0);
+  const [completed, setCompleted] = useState(0);
+  const [lastStars, setLastStars] = useState(1);
 
-  const modeRef = useRef<Mode>("daily");
-  const starsRef = useRef<number[]>([]);
   const stateRef = useRef<TiltState | null>(null);
   const tilesRef = useRef<Map<number, TileV>>(new Map());
   const particlesRef = useRef<Particle[]>([]);
@@ -189,7 +194,7 @@ export default function TiltGame() {
   const levelIdxRef = useRef(0);
   const scoreRef = useRef(0);
   const movesRef = useRef(LEVELS[0].moves);
-  const dayTotalRef = useRef(0);
+  const completedRef = useRef(0);
   const playRef = useRef<{ steps: Step[]; i: number; start: number; result: MoveResult } | null>(null);
   const swipeRef = useRef<{ x: number; y: number } | null>(null);
   const previewRef = useRef<{
@@ -199,11 +204,17 @@ export default function TiltGame() {
     popIds: Set<number>;
   } | null>(null);
   const sfxRef = useRef(new Sfx());
-  const dayRef = useRef("");
+  const variantRef = useRef(hashSeed(weeklySeed("tilt")) % 8);
+  const colorShiftRef = useRef(hashSeed(`${weeklySeed("tilt")}:colors`) % COLORS.length);
 
   const setPhaseBoth = (p: Phase) => {
     phaseRef.current = p;
     setPhase(p);
+  };
+
+  const displayPosition = (c: number, r: number) => {
+    const cell = transformCell(c, r, variantRef.current);
+    return { x: cellX(cell.c), y: cellY(cell.r) };
   };
 
   const syncTiles = () => {
@@ -214,15 +225,16 @@ export default function TiltGame() {
       for (let c = 0; c < SIZE; c++) {
         const t = st.grid[r][c];
         if (!t) continue;
+        const pos = displayPosition(c, r);
         map.set(t.id, {
           id: t.id,
           color: t.c,
-          x: cellX(c),
-          y: cellY(r),
-          fx: cellX(c),
-          fy: cellY(r),
-          tx: cellX(c),
-          ty: cellY(r),
+          x: pos.x,
+          y: pos.y,
+          fx: pos.x,
+          fy: pos.y,
+          tx: pos.x,
+          ty: pos.y,
           scale: 1,
           spawning: false,
           popping: false,
@@ -232,33 +244,15 @@ export default function TiltGame() {
   };
 
   const startLevel = (idx: number) => {
-    modeRef.current = "daily";
-    setMode("daily");
-    stateRef.current = newLevel(dayRef.current, idx);
-    levelIdxRef.current = idx;
+    const safeIdx = Math.max(0, Math.min(TOTAL_LEVELS - 1, idx));
+    if (safeIdx > completedRef.current) return;
+    stateRef.current = newLevel(safeIdx);
+    levelIdxRef.current = safeIdx;
     scoreRef.current = 0;
-    movesRef.current = LEVELS[idx].moves;
-    setLevelIdx(idx);
+    movesRef.current = LEVELS[safeIdx].moves;
+    setLevelIdx(safeIdx);
     setScore(0);
-    setMovesLeft(LEVELS[idx].moves);
-    playRef.current = null;
-    particlesRef.current = [];
-    floatsRef.current = [];
-    syncTiles();
-    setPhaseBoth("playing");
-  };
-
-  const startEndless = () => {
-    modeRef.current = "endless";
-    setMode("endless");
-    setEndlessBest(readTiltEndlessBest());
-    stateRef.current = newBoard(`tilt:endless:${Math.random().toString(36).slice(2, 9)}`, 4);
-    levelIdxRef.current = 0;
-    scoreRef.current = 0;
-    movesRef.current = 9999;
-    setLevelIdx(0);
-    setScore(0);
-    setMovesLeft(9999);
+    setMovesLeft(LEVELS[safeIdx].moves);
     playRef.current = null;
     particlesRef.current = [];
     floatsRef.current = [];
@@ -276,7 +270,7 @@ export default function TiltGame() {
         vx: Math.cos(a) * sp,
         vy: Math.sin(a) * sp - 1.5,
         life: 1,
-        color: COLORS[colorIdx % COLORS.length],
+        color: COLORS[(colorIdx + colorShiftRef.current) % COLORS.length],
         size: 3 + Math.random() * 4,
       });
     }
@@ -291,10 +285,8 @@ export default function TiltGame() {
       shakeRef.current = 5; // nudge: that direction does nothing
       return;
     }
-    if (modeRef.current === "daily") {
-      movesRef.current -= 1;
-      setMovesLeft(movesRef.current);
-    }
+    movesRef.current -= 1;
+    setMovesLeft(movesRef.current);
     playRef.current = { steps: result.steps, i: 0, start: performance.now(), result };
     sfxRef.current.slide();
   };
@@ -309,40 +301,22 @@ export default function TiltGame() {
 
     const st = stateRef.current;
 
-    if (modeRef.current === "endless") {
-      // colors escalate as the run grows - the well has no bottom, only steeper walls
-      if (st) st.colors = Math.min(6, 4 + (scoreRef.current >= 3000 ? 1 : 0) + (scoreRef.current >= 8000 ? 1 : 0));
-      if (st && !hasAnyMove(st)) {
-        sfxRef.current.fail();
-        if (scoreRef.current > readTiltEndlessBest()) {
-          try {
-            window.localStorage.setItem("gd:tilt:endless-best", String(scoreRef.current));
-            reportEndlessBest("tilt", scoreRef.current);
-          } catch {}
-        }
-        setEndlessBest(Math.max(readTiltEndlessBest(), scoreRef.current));
-        setPhaseBoth("endlessOver");
-      }
-      return;
-    }
-
     const cfg = LEVELS[levelIdxRef.current];
     if (scoreRef.current >= cfg.target) {
-      // stars: clear = 1, spare moves earn the rest
-      const earned = 1 + (movesRef.current >= 2 ? 1 : 0) + (movesRef.current >= 5 ? 1 : 0);
-      starsRef.current = [...starsRef.current];
-      starsRef.current[levelIdxRef.current] = earned;
-      setLevelStars([...starsRef.current]);
-      dayTotalRef.current += scoreRef.current;
-      setDayTotal(dayTotalRef.current);
+      const earned =
+        movesRef.current >= cfg.threeStarSpare
+          ? 3
+          : movesRef.current >= cfg.twoStarSpare
+            ? 2
+            : 1;
+      setLastStars(earned);
       sfxRef.current.win();
-      if (levelIdxRef.current >= LEVELS.length - 1) {
-        saveResult("tilt", dayRef.current, { score: dayTotalRef.current, won: true }, true);
-        setStreak(getStreak("tilt", dayRef.current));
-        setPhaseBoth("dayDone");
-      } else {
-        setPhaseBoth("levelClear");
-      }
+      const nextCompleted = Math.max(completedRef.current, levelIdxRef.current + 1);
+      completedRef.current = nextCompleted;
+      setCompleted(nextCompleted);
+      writeWeeklyProgress("tilt", nextCompleted);
+      reportLevelProgress("tilt", nextCompleted);
+      setPhaseBoth(levelIdxRef.current >= TOTAL_LEVELS - 1 ? "allDone" : "levelClear");
     } else if (movesRef.current <= 0 || (st && !hasAnyMove(st))) {
       sfxRef.current.fail();
       setPhaseBoth("levelFail");
@@ -355,10 +329,10 @@ export default function TiltGame() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    dayRef.current = todayKey();
-    setNum(challengeNumber("tilt"));
-    setStreak(getStreak("tilt", dayRef.current));
-    startLevel(0);
+    const saved = readWeeklyProgress("tilt");
+    completedRef.current = saved;
+    setCompleted(saved);
+    startLevel(Math.min(saved, TOTAL_LEVELS - 1));
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = BOARD * dpr;
@@ -378,17 +352,18 @@ export default function TiltGame() {
       const s = swipeRef.current;
       const st = stateRef.current;
       if (!s || !st || phaseRef.current !== "playing" || playRef.current) return;
-      const dir = dirFromDelta(e.clientX - s.x, e.clientY - s.y);
-      if (!dir) {
+      const displayDir = dirFromDelta(e.clientX - s.x, e.clientY - s.y);
+      if (!displayDir) {
         previewRef.current = null;
         return;
       }
-      const key = `${dir.dx},${dir.dy}`;
+      const key = `${displayDir.dx},${displayDir.dy}`;
       if (previewRef.current?.key === key) return;
+      const dir = toLogicalDir(displayDir, variantRef.current);
       const pv = previewMove(st, dir);
       previewRef.current = {
         key,
-        dir,
+        dir: displayDir,
         dest: new Map(pv.dest.map((d) => [d.id, { r: d.toR, c: d.toC }])),
         popIds: new Set(pv.popIds),
       };
@@ -398,8 +373,8 @@ export default function TiltGame() {
       swipeRef.current = null;
       previewRef.current = null;
       if (!s) return;
-      const dir = dirFromDelta(e.clientX - s.x, e.clientY - s.y);
-      if (dir) doMove(dir);
+      const displayDir = dirFromDelta(e.clientX - s.x, e.clientY - s.y);
+      if (displayDir) doMove(toLogicalDir(displayDir, variantRef.current));
     };
     const onKey = (e: KeyboardEvent) => {
       const map: Record<string, Dir> = {
@@ -411,7 +386,7 @@ export default function TiltGame() {
       const dir = map[e.key];
       if (dir) {
         e.preventDefault();
-        doMove(dir);
+        doMove(toLogicalDir(dir, variantRef.current));
       }
     };
 
@@ -420,7 +395,7 @@ export default function TiltGame() {
     canvas.addEventListener("pointerup", onUp);
     window.addEventListener("keydown", onKey);
 
-    if (!window.localStorage.getItem("gd:tilt:help")) setShowHelp(true);
+    if (!window.localStorage.getItem("gd:tilt:help:v2")) setShowHelp(true);
 
     const STEP_DUR: Record<Step["type"], number> = { slide: 150, pop: 210, spawn: 170 };
 
@@ -437,11 +412,12 @@ export default function TiltGame() {
           for (const m of step.moves) {
             const tv = tilesRef.current.get(m.id);
             if (!tv) continue;
-            if (tv.tx !== cellX(m.toC) || tv.ty !== cellY(m.toR)) {
+            const pos = displayPosition(m.toC, m.toR);
+            if (tv.tx !== pos.x || tv.ty !== pos.y) {
               tv.fx = tv.x;
               tv.fy = tv.y;
-              tv.tx = cellX(m.toC);
-              tv.ty = cellY(m.toR);
+              tv.tx = pos.x;
+              tv.ty = pos.y;
             }
             tv.x = tv.fx + (tv.tx - tv.fx) * ease(t);
             tv.y = tv.fy + (tv.ty - tv.fy) * ease(t);
@@ -461,8 +437,14 @@ export default function TiltGame() {
             (step as unknown as { fired?: boolean }).fired = true;
             sfxRef.current.pop(step.chain, step.ids.length);
             if (step.chain >= 2) shakeRef.current = Math.min(14, 4 + step.chain * 3);
-            const cx = step.cells.reduce((a, c) => a + cellX(c.c), 0) / step.cells.length + TILE / 2;
-            const cy = step.cells.reduce((a, c) => a + cellY(c.r), 0) / step.cells.length + TILE / 2;
+            const cx =
+              step.cells.reduce((sum, cell) => sum + displayPosition(cell.c, cell.r).x, 0) /
+                step.cells.length +
+              TILE / 2;
+            const cy =
+              step.cells.reduce((sum, cell) => sum + displayPosition(cell.c, cell.r).y, 0) /
+                step.cells.length +
+              TILE / 2;
             floatsRef.current.push({ x: cx, y: cy, text: `+${step.points}`, life: 1, big: false });
             if (step.chain >= 2 || step.ids.length >= 5)
               floatsRef.current.push({
@@ -477,15 +459,16 @@ export default function TiltGame() {
           for (const sp of step.tiles) {
             let tv = tilesRef.current.get(sp.id);
             if (!tv) {
+              const pos = displayPosition(sp.c, sp.r);
               tv = {
                 id: sp.id,
                 color: sp.color,
-                x: cellX(sp.c),
-                y: cellY(sp.r),
-                fx: cellX(sp.c),
-                fy: cellY(sp.r),
-                tx: cellX(sp.c),
-                ty: cellY(sp.r),
+                x: pos.x,
+                y: pos.y,
+                fx: pos.x,
+                fy: pos.y,
+                tx: pos.x,
+                ty: pos.y,
                 scale: 0,
                 spawning: true,
                 popping: false,
@@ -531,16 +514,19 @@ export default function TiltGame() {
         ctx.lineWidth = 2;
         for (const [id, cell] of pv.dest) {
           const gtv = tilesRef.current.get(id);
-          const col = gtv ? COLORS[gtv.color % COLORS.length] : "rgba(41,36,32,0.5)";
+          const col = gtv
+            ? COLORS[(gtv.color + colorShiftRef.current) % COLORS.length]
+            : "rgba(41,36,32,0.5)";
+          const pos = displayPosition(cell.c, cell.r);
           ctx.globalAlpha = 0.26;
           ctx.fillStyle = col;
           ctx.beginPath();
-          ctx.roundRect(cellX(cell.c) + 4, cellY(cell.r) + 4, TILE - 8, TILE - 8, 12);
+          ctx.roundRect(pos.x + 4, pos.y + 4, TILE - 8, TILE - 8, 12);
           ctx.fill();
           ctx.globalAlpha = 0.6;
           ctx.strokeStyle = col;
           ctx.beginPath();
-          ctx.roundRect(cellX(cell.c) + 4, cellY(cell.r) + 4, TILE - 8, TILE - 8, 12);
+          ctx.roundRect(pos.x + 4, pos.y + 4, TILE - 8, TILE - 8, 12);
           ctx.stroke();
           ctx.globalAlpha = 1;
         }
@@ -560,7 +546,8 @@ export default function TiltGame() {
         const cx = tv.x + TILE / 2 + leanX;
         const cy = tv.y + TILE / 2 + leanY;
         const half = (TILE / 2 - 2) * s;
-        ctx.fillStyle = COLORS[tv.color % COLORS.length];
+        const displayColor = (tv.color + colorShiftRef.current) % COLORS.length;
+        ctx.fillStyle = COLORS[displayColor];
         ctx.beginPath();
         ctx.roundRect(cx - half, cy - half, half * 2, half * 2, 14 * s);
         ctx.fill();
@@ -570,7 +557,7 @@ export default function TiltGame() {
         ctx.beginPath();
         ctx.roundRect(cx - half, cy - half, half * 2, half * 2, 14 * s);
         ctx.stroke();
-        if (s > 0.3) drawSymbol(ctx, tv.color, cx, cy, half * 0.42);
+        if (s > 0.3) drawSymbol(ctx, displayColor, cx, cy, half * 0.42);
       }
 
       // particles
@@ -629,103 +616,69 @@ export default function TiltGame() {
   }, []);
 
   const cfg = LEVELS[levelIdx];
-  const prior = typeof window !== "undefined" && dayRef.current ? loadResult("tilt", dayRef.current) : null;
-
-  const share = async () => {
-    const starRow = (s: number) =>
-      s >= 3 ? "🟩🟩🟩" : s === 2 ? "🟨🟨⬜" : s === 1 ? "🟧⬜⬜" : "⬜⬜⬜";
-    const grid = starsRef.current.map(starRow);
-    const text = buildShare("TILT", num, [
-      ...grid,
-      `🍬 ${dayTotalRef.current.toLocaleString()} pts`,
-    ], challengeUrl(dayTotalRef.current));
-    const outcome = await shareResult(text, {
-      game: "TILT",
-      num,
-      emoji: "🍬",
-      accent: "#ff6f61",
-      headline: `${dayTotalRef.current.toLocaleString()} pts`,
-      lines: grid,
-      streak,
-    });
-    setCopied(outcome !== "failed");
-    window.setTimeout(() => setCopied(false), 2000);
-  };
-
-  const restartDay = () => {
-    dayTotalRef.current = 0;
-    setDayTotal(0);
-    starsRef.current = [];
-    setLevelStars([]);
-    startLevel(0);
-  };
+  const nextUnlocked = levelIdx < TOTAL_LEVELS - 1 && levelIdx + 1 <= completed;
 
   return (
     <div className="relative w-full h-full flex flex-col">
-      <ModeSwitch endless={mode === "endless"} onDaily={restartDay} onEndless={startEndless} />
       <div className="stat-bar shrink-0">
-        {mode === "daily" ? (
-          <>
-            <div className="stat">
-              <span className="lab">Level</span>
-              <span className="val">{levelIdx + 1}/3</span>
-            </div>
-            <div className="stat">
-              <span className="lab">Moves</span>
-              <span className={`val${movesLeft <= 3 ? " warn" : ""}`}>{movesLeft}</span>
-            </div>
-            <div className="stat">
-              <span className="lab">Score</span>
-              <span className="val">
-                {score.toLocaleString()}
-                <span className="tx-soft font-medium"> / {cfg.target.toLocaleString()}</span>
-              </span>
-            </div>
-            <div className="stat">
-              <span className="lab">Streak</span>
-              <span className="val">{streak}🔥</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="stat">
-              <span className="lab">Score</span>
-              <span className="val">{score.toLocaleString()}</span>
-            </div>
-            <div className="stat">
-              <span className="lab">Colors</span>
-              <span className={`val${score >= 3000 ? " warn" : ""}`}>
-                {Math.min(6, 4 + (score >= 3000 ? 1 : 0) + (score >= 8000 ? 1 : 0))}
-              </span>
-            </div>
-            <div className="stat">
-              <span className="lab">Best</span>
-              <span className="val warn">{endlessBest.toLocaleString()}</span>
-            </div>
-          </>
-        )}
-      </div>
-      {mode === "daily" && (
-        <div className="h-1 bg-line overflow-hidden shrink-0">
-          <div
-            className="h-full rounded-full bg-amber-700 transition-all duration-300"
-            style={{ width: `${Math.min(100, (score / cfg.target) * 100)}%` }}
-          />
+        <div className="stat">
+          <span className="lab">Level</span>
+          <span className="val">{levelIdx + 1}/{TOTAL_LEVELS}</span>
         </div>
-      )}
+        <div className="stat">
+          <span className="lab">Moves</span>
+          <span className={`val${movesLeft <= 3 ? " warn" : ""}`}>{movesLeft}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Score</span>
+          <span className="val">
+            {score.toLocaleString()}
+            <span className="tx-soft font-medium"> / {cfg.target.toLocaleString()}</span>
+          </span>
+        </div>
+        <div className="stat">
+          <span className="lab">Colors</span>
+          <span className="val">{cfg.colors}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Week</span>
+          <span className="val">{weekLabel()}</span>
+        </div>
+      </div>
+      <div className="h-1 bg-line overflow-hidden shrink-0">
+        <div
+          className="h-full rounded-full bg-amber-700 transition-all duration-300"
+          style={{ width: `${Math.min(100, (score / cfg.target) * 100)}%` }}
+        />
+      </div>
 
       <div className="flex-1 min-h-0">
         <canvas ref={canvasRef} className="board" />
       </div>
+      <div className="mt-2 shrink-0 flex items-center justify-center gap-2">
+        <button
+          onClick={() => startLevel(levelIdx - 1)}
+          disabled={levelIdx === 0}
+          className="btn-line px-4 py-2 disabled:opacity-40"
+        >
+          Prev
+        </button>
+        <button onClick={() => startLevel(levelIdx)} className="btn-line px-4 py-2">
+          Restart
+        </button>
+        <button
+          onClick={() => startLevel(levelIdx + 1)}
+          disabled={!nextUnlocked}
+          className="btn-line px-4 py-2 disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
       <p className="hint shrink-0">
-        drag slowly &amp; <b>hold</b>: ghosts show where every tile lands, glowing tiles will pop ·
-        release to commit<span className="hidden sm:inline"> · arrow keys work too</span> ·{" "}
-        {mode === "daily" ? (
-          <button onClick={startEndless}>endless mode →</button>
-        ) : (
-          <button onClick={restartDay}>← back to daily</button>
-        )}{" "}
-        · <button onClick={() => setShowHelp(true)}>how to play?</button>
+        drag and hold to preview - release to move
+        <span className="hidden sm:inline"> - arrow keys work too</span> - 3 stars with{" "}
+        {cfg.threeStarSpare}+ moves left -{" "}
+        <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
       {showHelp && (
@@ -737,7 +690,7 @@ export default function TiltGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:tilt:help", "1");
+                  window.localStorage.setItem("gd:tilt:help:v2", "1");
                 } catch {}
               }}
             >
@@ -763,14 +716,21 @@ export default function TiltGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">4. Hit the target</span> before your
-                moves run out. Three levels a day, same boards for everyone.
+                moves run out. Spare {cfg.twoStarSpare}+ moves for 2 stars or{" "}
+                {cfg.threeStarSpare}+ for 3 stars.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">5. Complete all 100 levels.</span>{" "}
+                Target scores rise, moves tighten, and the board grows from 4 to 6 colors.
+                Every Monday rotates, reflects, and recolors the fixed boards without
+                changing their solution quality. Weekly depth is ranked and your career best remains saved.
               </li>
             </ol>
             <button
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:tilt:help", "1");
+                  window.localStorage.setItem("gd:tilt:help:v2", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
@@ -785,14 +745,15 @@ export default function TiltGame() {
       {phase === "levelClear" && (
         <Celebration
           title={`Level ${levelIdx + 1} complete!`}
-          stars={levelStars[levelIdx] || 1}
+          stars={lastStars}
           score={{ label: "points", value: score }}
           badges={[
             `${movesLeft} move${movesLeft === 1 ? "" : "s"} spared`,
-            ...(score >= cfg.target * 1.4 ? ["Target smashed 💥"] : []),
+            `${completed}/${TOTAL_LEVELS} this week`,
           ]}
-          primary={{ label: `Level ${levelIdx + 2} →`, onClick: () => startLevel(levelIdx + 1) }}
-          footnote="More colors, less mercy."
+          primary={{ label: `Level ${levelIdx + 2} ->`, onClick: () => startLevel(levelIdx + 1) }}
+          secondary={{ label: "Replay level", onClick: () => startLevel(levelIdx) }}
+          footnote={`Stars: 3 with ${cfg.threeStarSpare}+ moves left, 2 with ${cfg.twoStarSpare}+, 1 for completing the target.`}
         />
       )}
 
@@ -804,37 +765,16 @@ export default function TiltGame() {
         </Overlay>
       )}
 
-      {phase === "dayDone" && (
+      {phase === "allDone" && (
         <Celebration
-          title={`TILT #${num} complete!`}
-          stars={Math.round(levelStars.reduce((a, b) => a + (b || 0), 0) / 3)}
-          score={{ label: "total points", value: dayTotal }}
-          badges={levelStars.map((s, i) => `L${i + 1}: ${"★".repeat(s)}`)}
-          primary={{ label: copied ? "Shared ✓" : "Challenge a friend", onClick: share }}
-          secondary={{ label: "Keep going ∞", onClick: startEndless }}
-          pill={{ label: "Keep going ∞", onClick: startEndless }}
-          footnote={
-            endlessBest > 0
-              ? `Your endless best: ${endlessBest.toLocaleString()} - beat it?`
-              : "Endless mode has no bottom - how far can you go?"
-          }
-          countdown
+          title="All 100 weekly TILT levels complete!"
+          stars={lastStars}
+          score={{ label: "levels completed", value: TOTAL_LEVELS }}
+          badges={[`${score.toLocaleString()} points on Level 100`, "Maximum leaderboard progress"]}
+          primary={{ label: "Replay Level 100", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
+          secondary={{ label: "Back to Level 1", onClick: () => startLevel(0) }}
+          footnote="Your TILT weekly leaderboard score is 100 completed levels."
           feedback="tilt"
-        />
-      )}
-
-      {phase === "endlessOver" && (
-        <Celebration
-          title="Board jammed!"
-          stars={score >= 12000 ? 3 : score >= 6000 ? 2 : score >= 2000 ? 1 : 0}
-          score={{ label: "endless score", value: score }}
-          badges={[
-            score >= endlessBest && score > 0 ? "New best! 🏆" : `Best: ${endlessBest.toLocaleString()}`,
-            `${Math.min(6, 4 + (score >= 3000 ? 1 : 0) + (score >= 8000 ? 1 : 0))} colors survived`,
-          ]}
-          primary={{ label: "Run it back →", onClick: startEndless }}
-          secondary={{ label: "← Daily", onClick: restartDay }}
-          footnote="The board always wins eventually."
         />
       )}
     </div>
@@ -859,7 +799,7 @@ function Overlay({
         <h2 className="font-serif text-2xl font-bold tx-ink mb-1">{title}</h2>
         <p className="tx-muted mb-5">{sub}</p>
         {children}
-        <p className="text-xs tx-soft mt-4">Same boards for everyone today. New boards at midnight.</p>
+        <p className="text-xs tx-soft mt-4">Restart the fixed level and try a different slide sequence.</p>
       </div>
     </div>
   );

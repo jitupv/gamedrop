@@ -1,7 +1,7 @@
 // PRISM core: seeded grid generation + beam simulation.
 // Generation is construct-then-place, not generate-then-search: a valid beam
-// path is built directly (walk, bend, walk, bend...) using exactly the level's
-// mirror budget, targets are dropped ON that path (never on a bend cell, since
+// path is built directly (walk, bend, walk, bend...) using the level's intended
+// route length, targets are dropped ON that path (never on a bend cell, since
 // a mirror can't share a cell with a target), and cosmetic walls are scattered
 // everywhere the path doesn't go. This guarantees a solution exists by
 // construction - no search needed, no risk of an unsolvable board - and stays
@@ -35,32 +35,40 @@ export interface PrismLevel {
   emitter: { cell: Cell; dir: Dir };
   receiver: Cell;
   budget: number; // max mirrors that may be placed at once
+  par: number; // expected minimum mirrors for 3 stars
 }
 
 export interface PrismCfg {
   cols: number;
   rows: number;
   targets: number;
-  budget: number;
+  routeMirrors: number;
+  wallRatio: number;
 }
 
-// escalating boards across the daily's 3 levels - constraint stays the mirror
-// budget, difficulty comes from more targets and a bigger field to route through
-export const LEVELS: PrismCfg[] = [
-  { cols: 8, rows: 8, targets: 3, budget: 4 },
-  { cols: 9, rows: 9, targets: 4, budget: 5 },
-  { cols: 10, rows: 9, targets: 5, budget: 6 },
-];
+export const TOTAL_LEVELS = 100;
 
-// endless: boards keep growing; the mirror bank (tracked by the component,
-// like ORBIT's fuel) only refills a little each round, so being wasteful early
-// eventually leaves you unable to afford a board at all
-export function endlessCfg(i: number): PrismCfg {
+// Fixed progression shared by every player. Difficulty rises through larger
+// boards, longer routes, more targets, and more blocking walls.
+export function levelCfg(levelIdx: number): PrismCfg {
+  const n = Math.max(0, Math.min(TOTAL_LEVELS - 1, levelIdx));
+  if (n < 10) {
+    return {
+      cols: 7 + Math.floor(n / 3),
+      rows: 7 + Math.floor(n / 4),
+      targets: 3 + Math.floor(n / 2),
+      routeMirrors: 2 + Math.floor((n + 1) / 2),
+      wallRatio: 0.05 + n * 0.006,
+    };
+  }
+
+  const advanced = n - 9;
   return {
-    cols: Math.min(12, 8 + Math.floor(i / 2)),
-    rows: Math.min(11, 8 + Math.floor(i / 2)),
-    targets: Math.min(7, 3 + Math.floor(i / 2)),
-    budget: Math.min(8, 4 + Math.floor(i / 2)),
+    cols: Math.min(14, 10 + Math.floor(advanced / 18)),
+    rows: Math.min(12, 9 + Math.floor(advanced / 25)),
+    targets: Math.min(12, 7 + Math.floor(advanced / 18)),
+    routeMirrors: Math.min(14, 7 + Math.floor(advanced / 13)),
+    wallRatio: Math.min(0.22, 0.1 + advanced * 0.00135),
   };
 }
 
@@ -135,7 +143,11 @@ export function isSolved(level: PrismLevel, trace: TraceResult): boolean {
 // pragmatic approach HEIST's fullLootRoute uses. Only used here for the cheap
 // "is this solvable with 0-1 mirrors" quality check - real solvability comes
 // from construction, not this search.
-function canSolveWithinMirrors(level: Omit<PrismLevel, "budget">, maxMirrors: number, nodeBudget = 120000): boolean {
+function canSolveWithinMirrors(
+  level: Omit<PrismLevel, "budget" | "par">,
+  maxMirrors: number,
+  nodeBudget = 120000
+): boolean {
   const fullMask = (1 << level.targets.length) - 1;
   const visitedCells = new Set<string>();
   let nodes = 0;
@@ -182,10 +194,10 @@ function canSolveWithinMirrors(level: Omit<PrismLevel, "budget">, maxMirrors: nu
 }
 
 export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
-  const { cols, rows, targets: targetCount, budget } = cfg;
+  const { cols, rows, targets: targetCount, routeMirrors, wallRatio } = cfg;
   const maxRun = Math.max(4, Math.floor((cols + rows) / 4));
 
-  for (let attempt = 0; attempt < 60; attempt++) {
+  for (let attempt = 0; attempt < 240; attempt++) {
     const rng = mulberry32(hashSeed(`${seedBase}:${attempt}`));
     const visited = new Set<string>();
     const emitterRow = 1 + Math.floor(rng() * (rows - 2));
@@ -205,8 +217,8 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     // ending on a final run whose endpoint becomes the receiver. Runs are at
     // least 2 cells so bends can't sit immediately next to each other - short
     // adjacent bends are the easiest pattern to brute-force guess.
-    for (let bend = 0; bend <= budget; bend++) {
-      const isLast = bend === budget;
+    for (let bend = 0; bend <= routeMirrors; bend++) {
+      const isLast = bend === routeMirrors;
       const [dx, dy] = DIR_VECS[dirIdx];
       const desired = 2 + Math.floor(rng() * (maxRun - 1));
       let steps = 0;
@@ -277,20 +289,25 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
 
     // cosmetic walls, scattered anywhere the solution path doesn't run
     const walls: boolean[][] = Array.from({ length: rows }, () => Array(cols).fill(false));
-    const wallCount = Math.floor(cols * rows * 0.1);
-    for (let i = 0; i < wallCount; i++) {
+    const wallCount = Math.floor(cols * rows * wallRatio);
+    let wallsPlaced = 0;
+    for (let tries = 0; wallsPlaced < wallCount && tries < wallCount * 10; tries++) {
       const wc = Math.floor(rng() * cols);
       const wr = Math.floor(rng() * rows);
-      if (visited.has(`${wc},${wr}`)) continue;
+      if (visited.has(`${wc},${wr}`) || walls[wr][wc]) continue;
       walls[wr][wc] = true;
+      wallsPlaced++;
     }
 
     const bare = { cols, rows, walls, targets, emitter, receiver };
     if (canSolveWithinMirrors(bare, 1)) continue; // a shortcut exists - too easy, reject
     // also reject anything solvable well under the intended budget - the
     // board should genuinely need most of what it hands out
-    if (budget >= 3 && canSolveWithinMirrors(bare, budget - 2)) continue;
-    return { ...bare, budget };
+    if (routeMirrors >= 3 && canSolveWithinMirrors(bare, routeMirrors - 2)) continue;
+    const par = canSolveWithinMirrors(bare, routeMirrors - 1)
+      ? routeMirrors - 1
+      : routeMirrors;
+    return { ...bare, budget: par + 2, par };
   }
 
   // deterministic fallback: a straight, trivial shot (should practically never trigger)
@@ -303,17 +320,26 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     targets: [{ c: Math.floor(cols / 2), r: Math.floor(rows / 2) }],
     emitter,
     receiver,
-    budget,
+    budget: routeMirrors + 2,
+    par: 0,
   };
 }
 
-export function genLevel(dayKey: string, levelIdx: number): PrismLevel {
-  return genLevelFrom(`prism:${dayKey}:L${levelIdx}`, LEVELS[levelIdx]);
+export function genProgressLevel(levelIdx: number, seasonKey = "all"): PrismLevel {
+  const safeIndex = Math.max(0, Math.min(TOTAL_LEVELS - 1, levelIdx));
+  const cfg = levelCfg(safeIndex);
+  let level = genLevelFrom(`prism:weekly:v1:${seasonKey}:L${safeIndex + 1}:0`, cfg);
+  for (let variant = 1; (level.par === 0 || level.targets.length !== cfg.targets) && variant < 12; variant++) {
+    level = genLevelFrom(
+      `prism:weekly:v1:${seasonKey}:L${safeIndex + 1}:${variant}`,
+      cfg
+    );
+  }
+  return level;
 }
 
-// daily stars: fewer mirrors relative to the budget = more stars
-export function starsFor(mirrorsUsed: number, budget: number): number {
-  if (mirrorsUsed <= budget - 2) return 3;
-  if (mirrorsUsed <= budget - 1) return 2;
+export function starsFor(mirrorsUsed: number, par: number): number {
+  if (mirrorsUsed <= par) return 3;
+  if (mirrorsUsed === par + 1) return 2;
   return 1;
 }

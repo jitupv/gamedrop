@@ -5,7 +5,7 @@ export interface GameMeta {
   status: "live" | "soon";
   emoji: string;
   path: string;
-  unit: string; // what the daily score measures
+  unit: string; // what the leaderboard score measures
   higherIsBetter: boolean;
   drop: number; // release order in the catalog - highest = the newest drop, always featured
   accent: string; // per-game identity color - homepage art, share cards, OG images
@@ -28,8 +28,8 @@ export const GAMES: GameMeta[] = [
     status: "live",
     emoji: "🪞",
     path: "/prism",
-    unit: "mirrors",
-    higherIsBetter: false,
+    unit: "levels",
+    higherIsBetter: true,
     accent: "#ff2d6f",
   },
   {
@@ -40,22 +40,23 @@ export const GAMES: GameMeta[] = [
     status: "live",
     emoji: "🍬",
     path: "/tilt",
-    unit: "pts",
+    unit: "levels",
     higherIsBetter: true,
     accent: "#ff6f61",
   },
-  {
-    id: "orbit",
-    drop: 1,
-    name: "ORBIT",
-    tagline: "Golf, but the course is a solar system.",
-    status: "live",
-    emoji: "🪐",
-    path: "/orbit",
-    unit: "launches",
-    higherIsBetter: false,
-    accent: "#9d8cff",
-  },
+  // ORBIT is temporarily hidden. Uncomment this entry when the game returns.
+  // {
+  //   id: "orbit",
+  //   drop: 1,
+  //   name: "ORBIT",
+  //   tagline: "Golf, but the course is a solar system.",
+  //   status: "live",
+  //   emoji: "🪐",
+  //   path: "/orbit",
+  //   unit: "launches",
+  //   higherIsBetter: false,
+  //   accent: "#9d8cff",
+  // },
   {
     id: "sonar",
     drop: 2,
@@ -64,8 +65,8 @@ export const GAMES: GameMeta[] = [
     status: "live",
     emoji: "🔦",
     path: "/sonar",
-    unit: "pings",
-    higherIsBetter: false,
+    unit: "levels",
+    higherIsBetter: true,
     accent: "#3fd6c0",
   },
   {
@@ -76,8 +77,8 @@ export const GAMES: GameMeta[] = [
     status: "live",
     emoji: "💎",
     path: "/heist",
-    unit: "plans",
-    higherIsBetter: false,
+    unit: "levels",
+    higherIsBetter: true,
     accent: "#3fbf7f",
   },
   {
@@ -88,7 +89,7 @@ export const GAMES: GameMeta[] = [
     status: "live",
     emoji: "🚦",
     path: "/rush",
-    unit: "cars",
+    unit: "levels",
     higherIsBetter: true,
     accent: "#ffa23e",
   },
@@ -100,7 +101,7 @@ export const GAMES: GameMeta[] = [
     status: "live",
     emoji: "✏️",
     path: "/trace",
-    unit: "%",
+    unit: "levels",
     higherIsBetter: true,
     accent: "#6fa8ff",
   },
