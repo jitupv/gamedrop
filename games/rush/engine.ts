@@ -140,6 +140,10 @@ export function makeTrafficStream(seedKey: string, level = 1) {
 // demand more than 100% of the light's time. That gives each run a real ceiling
 // instead of letting a steady player idle at a plateau forever.
 export function spawnInterval(elapsed: number, level = 1): number {
-  const levelPressure = 1 - (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) * 0.0022;
-  return Math.max(0.3, (2.4 - elapsed * 0.028) * levelPressure);
+  const levelPressure = Math.max(
+    0.65,
+    1 - (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) * 0.0035
+  );
+
+  return Math.max(0.3, (1.7 - elapsed * 0.024) * levelPressure);
 }
