@@ -75,6 +75,7 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
         : Math.min(...wins.map((r) => r.score));
   const longest = maxStreak(records);
   const recent = [...records].slice(-5).reverse();
+  const currentLevel = Math.min(levelProgress + 1, 100);
   const pct =
     board?.myRank && board.total > 0 ? Math.max(1, Math.ceil((board.myRank / board.total) * 100)) : null;
   // if your row is already visible in the list, its own pencil covers renaming -
@@ -95,9 +96,13 @@ export default function StatsModal({ gameId, onClose }: { gameId: string; onClos
         <p className="overline text-center mb-4">Your stats</p>
 
         {levelGame ? (
-          <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="metric">
-              <span className="lab">This week {weekLabel()}</span>
+              <span className="lab">Level</span>
+              <span className="num">{currentLevel}</span>
+            </div>
+            <div className="metric">
+              <span className="lab">Completed {weekLabel()}</span>
               <span className="num">{levelProgress}</span>
             </div>
             <div className="metric">

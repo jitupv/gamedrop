@@ -77,13 +77,11 @@ export default function GameHeader({ gameId }: { gameId: string }) {
           >
             <FontAwesomeIcon icon={faChartColumn} width={13} height={13} />
           </button>
-          <span className="gh-chip text-[10px] font-bold tracking-[0.14em] tabular-nums">
-            {levelGame
-              ? "100 LEVELS"
-              : num !== null
-                ? `#${String(num).padStart(2, "0")}`
-                : ""}
-          </span>
+          {!levelGame && num !== null && (
+            <span className="gh-chip text-[10px] font-bold tracking-[0.14em] tabular-nums">
+              #{String(num).padStart(2, "0")}
+            </span>
+          )}
         </div>
       </div>
       {showStats && <StatsModal gameId={gameId} onClose={() => setShowStats(false)} />}

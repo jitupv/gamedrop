@@ -336,9 +336,11 @@ export default function PrismGame() {
       <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Level</span>
-          <span className="val">
-            {levelIdx + 1}/{TOTAL_LEVELS}
-          </span>
+          <span className="val">{levelIdx + 1}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Completed</span>
+          <span className="val">{completed}</span>
         </div>
         <div className="stat">
           <span className="lab">Mirrors</span>
@@ -429,7 +431,7 @@ export default function PrismGame() {
                 Using the minimum number of mirrors earns three stars.
               </li>
               <li>
-                <span className="tx-ink font-semibold">4. Complete all 100 levels.</span>{" "}
+                <span className="tx-ink font-semibold">4. Keep climbing.</span>{" "}
                 Every Monday brings a globally shared remix. Weekly progress starts
                 at Level 1 while your career best remains saved.
               </li>
@@ -455,7 +457,7 @@ export default function PrismGame() {
           title={`Level ${levelIdx + 1} complete!`}
           stars={lastStars}
           score={{ label: "mirrors used", value: mirrorsUsed }}
-          badges={[`${completed}/${TOTAL_LEVELS} this week`]}
+          badges={[`${completed} completed this week`]}
           primary={{
             label: `Level ${levelIdx + 2} →`,
             onClick: () => loadLevel(levelIdx + 1),
@@ -470,20 +472,20 @@ export default function PrismGame() {
 
       {phase === "allDone" && (
         <Celebration
-          title="All 100 weekly levels complete!"
+          title="Weekly PRISM run complete!"
           stars={3}
           score={{ label: "levels completed", value: completed }}
           badges={["PRISM mastered 🏆"]}
           primary={{
-            label: "Replay level 100",
+            label: "Replay final level",
             onClick: () => loadLevel(TOTAL_LEVELS - 1),
           }}
           secondary={{
             label: "Back to level 1",
             onClick: () => loadLevel(0),
           }}
-          footnote="Your 100-level weekly depth is now on the global leaderboard."
           feedback="prism"
+          finalWeek
         />
       )}
     </div>

@@ -35,6 +35,7 @@ import { reportLevelProgress } from "@/lib/sdk/leaderboard";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { applyView, inScreenSpace } from "@/lib/sdk/viewport";
 import PuzzleRating from "@/components/PuzzleRating";
+import Celebration from "@/components/Celebration";
 import {
   readStoredNumber,
   weekLabel,
@@ -74,6 +75,7 @@ export default function RushGame() {
   const [phase, setPhase] = useState<Phase>("ready");
   const [showHelp, setShowHelp] = useState(false);
   const [crashHidden, setCrashHidden] = useState(false);
+  const [showFinale, setShowFinale] = useState(false);
 
   const carsRef = useRef<Car[]>([]);
   const lightRef = useRef<"H" | "V">("H");
@@ -315,6 +317,10 @@ export default function RushGame() {
                     setLevelNotice(progress.completed);
                     writeWeeklyProgress("rush", progress.completed);
                     void reportLevelProgress("rush", progress.completed);
+                    if (progress.completed >= TOTAL_LEVELS) {
+                      setPhaseBoth("ready");
+                      setShowFinale(true);
+                    }
                     if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
                     noticeTimerRef.current = window.setTimeout(() => setLevelNotice(null), 2400);
                   }
@@ -567,7 +573,11 @@ export default function RushGame() {
       <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Level</span>
-          <span className="val">{progress.level}/{TOTAL_LEVELS}</span>
+          <span className="val">{progress.level}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Completed</span>
+          <span className="val">{progress.completed}</span>
         </div>
         <div className="stat">
           <span className="lab">This level</span>
@@ -590,7 +600,7 @@ export default function RushGame() {
       {levelNotice !== null && (
         <div className="shrink-0 mx-2 mt-1 rounded-full bg-[#ffa23e] px-3 py-1 text-center text-xs font-bold text-[#241b13]">
           Level {levelNotice} complete!{" "}
-          {levelNotice < TOTAL_LEVELS ? `Level ${levelNotice + 1} unlocked` : "All 100 levels completed"}
+          {levelNotice < TOTAL_LEVELS ? `Level ${levelNotice + 1} unlocked` : "Weekly run complete"}
         </div>
       )}
 
@@ -698,7 +708,7 @@ export default function RushGame() {
               <span className="tx-ink font-bold">{score} cars</span> passed this run
             </p>
             <p className="text-xs tx-soft mb-4">
-              Level {progress.level}/{TOTAL_LEVELS} · {progress.carsInLevel}/{CARS_PER_LEVEL} cars · best run {best}
+              Level {progress.level} · {progress.carsInLevel}/{CARS_PER_LEVEL} cars · best run {best}
             </p>
             <button onClick={startRun} className="btn-ink px-6 py-2.5">
               Again
@@ -707,6 +717,30 @@ export default function RushGame() {
             <p className="text-xs tx-soft mt-4">Weekly completed-level progress is saved automatically.</p>
           </div>
         </div>
+      )}
+
+      {showFinale && (
+        <Celebration
+          title="Weekly RUSH run complete!"
+          stars={3}
+          score={{ label: "levels completed", value: progress.completed }}
+          badges={[`${score} cars this run`, "Weekly run complete"]}
+          primary={{
+            label: "Keep playing",
+            onClick: () => {
+              setShowFinale(false);
+              startRun();
+            },
+          }}
+          secondary={{
+            label: "Back home",
+            onClick: () => {
+              window.location.href = "/";
+            },
+          }}
+          feedback="rush"
+          finalWeek
+        />
       )}
     </div>
   );

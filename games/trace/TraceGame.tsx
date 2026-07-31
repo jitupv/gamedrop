@@ -261,7 +261,11 @@ export default function TraceGame() {
       <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Level</span>
-          <span className="val">{levelIdx + 1}/{TOTAL_LEVELS}</span>
+          <span className="val">{levelIdx + 1}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Completed</span>
+          <span className="val">{completed}</span>
         </div>
         <div className="stat">
           <span className="lab">Pass</span>
@@ -362,7 +366,7 @@ export default function TraceGame() {
                 The target briefly returns, but 8% is deducted from your accuracy.
               </li>
               <li>
-                <span className="tx-ink font-semibold">5. Complete all 100 levels.</span>{" "}
+                <span className="tx-ink font-semibold">5. Keep climbing.</span>{" "}
                 The drawings gain more strokes and harder shapes while memorization time shrinks.
                 Every Monday changes the shapes and positions. Weekly depth is ranked,
                 while your career best remains saved.
@@ -401,7 +405,7 @@ export default function TraceGame() {
           title={`Level ${levelIdx + 1} traced!`}
           stars={lastStars}
           score={{ label: "accuracy", value: lastAccuracy, decimals: 1, suffix: "%" }}
-          badges={[`${completed}/${TOTAL_LEVELS} this week`, peeked ? "Peek used: -8%" : "No peek"]}
+          badges={[`${completed} completed this week`, peeked ? "Peek used: -8%" : "No peek"]}
           primary={{ label: `Level ${levelIdx + 2} ->`, onClick: () => startLevel(levelIdx + 1) }}
           secondary={{ label: "Replay level", onClick: () => startLevel(levelIdx) }}
           footnote="Stars: 3 at 75%, 2 at 55%, 1 at 35%. Below 35% does not unlock the next level."
@@ -410,14 +414,14 @@ export default function TraceGame() {
 
       {phase === "allDone" && (
         <Celebration
-          title="All 100 weekly TRACE levels complete!"
+          title="Weekly TRACE run complete!"
           stars={lastStars}
           score={{ label: "levels completed", value: TOTAL_LEVELS }}
-          badges={[`${lastAccuracy}% on Level 100`, "Maximum leaderboard progress"]}
-          primary={{ label: "Replay Level 100", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
+          badges={[`${lastAccuracy}% on the final challenge`, "Weekly run complete"]}
+          primary={{ label: "Replay final level", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
           secondary={{ label: "Back to Level 1", onClick: () => startLevel(0) }}
-          footnote="Your TRACE weekly leaderboard score is 100 completed levels."
           feedback="trace"
+          finalWeek
         />
       )}
     </div>

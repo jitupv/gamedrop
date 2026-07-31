@@ -360,7 +360,11 @@ export default function SonarGame() {
       <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Level</span>
-          <span className="val">{levelIdx + 1}/{TOTAL_LEVELS}</span>
+          <span className="val">{levelIdx + 1}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Completed</span>
+          <span className="val">{completed}</span>
         </div>
         <div className="stat">
           <span className="lab">Pings</span>
@@ -456,7 +460,7 @@ export default function SonarGame() {
                 and escape.
               </li>
               <li>
-                <span className="tx-ink font-semibold">5. Complete all 100 levels.</span> Routes
+                <span className="tx-ink font-semibold">5. Keep climbing.</span> Routes
                 grow from 10 to 136 steps. Every Monday brings a globally shared maze remix;
                 weekly depth is ranked and your career best remains saved.
               </li>
@@ -484,7 +488,7 @@ export default function SonarGame() {
           score={{ label: "pings used", value: lastPings }}
           badges={[
             fmtTime(lastTime),
-            `${completed}/${TOTAL_LEVELS} this week`,
+            `${completed} completed this week`,
           ]}
           primary={{ label: `Level ${levelIdx + 2} →`, onClick: () => startLevel(levelIdx + 1) }}
           secondary={{ label: "Replay level", onClick: () => startLevel(levelIdx) }}
@@ -494,14 +498,14 @@ export default function SonarGame() {
 
       {phase === "allDone" && (
         <Celebration
-          title="All 100 weekly SONAR levels complete!"
+          title="Weekly SONAR run complete!"
           stars={lastStars}
           score={{ label: "levels completed", value: TOTAL_LEVELS }}
-          badges={[`${lastPings} pings on Level 100`, "Maximum leaderboard progress"]}
-          primary={{ label: "Replay Level 100", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
+          badges={[`${lastPings} pings on the final challenge`, "Weekly run complete"]}
+          primary={{ label: "Replay final level", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
           secondary={{ label: "Back to Level 1", onClick: () => startLevel(0) }}
-          footnote="Your SONAR weekly leaderboard score is 100 completed levels."
           feedback="sonar"
+          finalWeek
         />
       )}
     </div>

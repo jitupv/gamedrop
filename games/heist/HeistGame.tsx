@@ -438,7 +438,11 @@ export default function HeistGame() {
       <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Level</span>
-          <span className="val">{levelIdx + 1}/{TOTAL_LEVELS}</span>
+          <span className="val">{levelIdx + 1}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Completed</span>
+          <span className="val">{completed}</span>
         </div>
         <div className="stat">
           <span className="lab">Gems</span>
@@ -528,7 +532,7 @@ export default function HeistGame() {
                 your second for 2 stars, or your third or later for 1 star.
               </li>
               <li>
-                <span className="tx-ink font-semibold">5. Complete all 100 levels.</span>{" "}
+                <span className="tx-ink font-semibold">5. Keep climbing.</span>{" "}
                 Later museums add longer routes, more walls, more gems, and up to six guards.
                 Every Monday brings new placements. Weekly depth is ranked, while your
                 career best remains saved.
@@ -557,7 +561,7 @@ export default function HeistGame() {
           score={{ label: "gems secured", value: lastGems }}
           badges={[
             attempts === 1 ? "First plan — 3 stars" : `${attempts} plans`,
-            `${completed}/${TOTAL_LEVELS} this week`,
+            `${completed} completed this week`,
           ]}
           primary={{ label: `Level ${levelIdx + 2} →`, onClick: () => startLevel(levelIdx + 1) }}
           secondary={{ label: "Replay level", onClick: () => startLevel(levelIdx) }}
@@ -567,17 +571,17 @@ export default function HeistGame() {
 
       {phase === "allDone" && (
         <Celebration
-          title="All 100 weekly HEIST levels complete!"
+          title="Weekly HEIST run complete!"
           stars={lastStars}
           score={{ label: "levels completed", value: TOTAL_LEVELS }}
           badges={[
-            `${attempts} plan${attempts === 1 ? "" : "s"} on Level 100`,
-            "Maximum leaderboard progress",
+            `${attempts} plan${attempts === 1 ? "" : "s"} on the final challenge`,
+            "Weekly run complete",
           ]}
-          primary={{ label: "Replay Level 100", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
+          primary={{ label: "Replay final level", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
           secondary={{ label: "Back to Level 1", onClick: () => startLevel(0) }}
-          footnote="Your HEIST weekly leaderboard score is 100 completed levels."
           feedback="heist"
+          finalWeek
         />
       )}
     </div>

@@ -22,7 +22,7 @@ export function featuredGameId(): string {
 export const GAMES: GameMeta[] = [
   {
     id: "prism",
-    drop: 7,
+    drop: 6,
     name: "PRISM",
     tagline: "Bend a laser through every target. Budget your mirrors.",
     status: "live",
@@ -34,7 +34,7 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: "tilt",
-    drop: 6,
+    drop: 5,
     name: "TILT",
     tagline: "Swipe the whole board. Match. Chain. Repeat.",
     status: "live",
@@ -59,7 +59,7 @@ export const GAMES: GameMeta[] = [
   // },
   {
     id: "sonar",
-    drop: 2,
+    drop: 1,
     name: "SONAR",
     tagline: "You're blind. Sound is your eyes.",
     status: "live",
@@ -71,7 +71,7 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: "heist",
-    drop: 3,
+    drop: 2,
     name: "HEIST",
     tagline: "Plan the perfect robbery. Then watch it go wrong.",
     status: "live",
@@ -83,7 +83,7 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: "rush",
-    drop: 4,
+    drop: 3,
     name: "RUSH",
     tagline: "You are the traffic light. Don't let them touch.",
     status: "live",
@@ -95,7 +95,7 @@ export const GAMES: GameMeta[] = [
   },
   {
     id: "trace",
-    drop: 5,
+    drop: 4,
     name: "TRACE",
     tagline: "See it. Lose it. Draw it from memory.",
     status: "live",

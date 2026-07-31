@@ -19,7 +19,6 @@ import {
   leaderboardEnabled,
 } from "@/lib/sdk/leaderboard";
 import {
-  LEVEL_GAME_IDS,
   previousWeekKey,
   weekKey,
   weekLabel,
@@ -39,7 +38,6 @@ export default function HomeBoard({
   const [previousBoard, setPreviousBoard] = useState<Board | null | undefined>(undefined);
   const enabled = leaderboardEnabled();
   const week = weekKey();
-  const maximum = LEVEL_GAME_IDS.length * 100;
 
   useEffect(() => {
     if (!leaderboardEnabled()) return;
@@ -137,7 +135,7 @@ export default function HomeBoard({
                         {r.mine ? " (you)" : ""}
                       </span>
                       <span className="s">
-                        {r.score.toLocaleString()}/{maximum} levels
+                        {r.score.toLocaleString()} levels
                       </span>
                     </div>
                   ) : (
@@ -163,7 +161,7 @@ export default function HomeBoard({
                         {r.mine ? " (you)" : ""}
                       </span>
                       <span className="s">
-                        {r.score.toLocaleString()}/{maximum} levels
+                        {r.score.toLocaleString()} levels
                       </span>
                     </li>
                   ))}
@@ -178,7 +176,7 @@ export default function HomeBoard({
                   {board.myScore !== null && (
                     <>
                       {" "}
-                      · {board.myScore.toLocaleString()}/{maximum} levels
+                      · {board.myScore.toLocaleString()} levels
                     </>
                   )}
                 </p>
@@ -198,7 +196,7 @@ export default function HomeBoard({
 
           <div className="hb-foot">
             <span className="hb-note">
-              Across {LEVEL_GAME_IDS.length} games · new shared layouts every Monday
+              Across every live game · new shared layouts every Monday
             </span>
             <Link href={game.path} className="hb-cta">
               {rows.length === 0 ? "Claim the top spot" : "Improve your total"}{" "}

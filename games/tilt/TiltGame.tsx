@@ -623,7 +623,11 @@ export default function TiltGame() {
       <div className="stat-bar shrink-0">
         <div className="stat">
           <span className="lab">Level</span>
-          <span className="val">{levelIdx + 1}/{TOTAL_LEVELS}</span>
+          <span className="val">{levelIdx + 1}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Completed</span>
+          <span className="val">{completed}</span>
         </div>
         <div className="stat">
           <span className="lab">Moves</span>
@@ -720,7 +724,7 @@ export default function TiltGame() {
                 {cfg.threeStarSpare}+ for 3 stars.
               </li>
               <li>
-                <span className="tx-ink font-semibold">5. Complete all 100 levels.</span>{" "}
+                <span className="tx-ink font-semibold">5. Keep climbing.</span>{" "}
                 Target scores rise, moves tighten, and the board grows from 4 to 6 colors.
                 Every Monday rotates, reflects, and recolors the fixed boards without
                 changing their solution quality. Weekly depth is ranked and your career best remains saved.
@@ -749,7 +753,7 @@ export default function TiltGame() {
           score={{ label: "points", value: score }}
           badges={[
             `${movesLeft} move${movesLeft === 1 ? "" : "s"} spared`,
-            `${completed}/${TOTAL_LEVELS} this week`,
+            `${completed} completed this week`,
           ]}
           primary={{ label: `Level ${levelIdx + 2} ->`, onClick: () => startLevel(levelIdx + 1) }}
           secondary={{ label: "Replay level", onClick: () => startLevel(levelIdx) }}
@@ -767,14 +771,14 @@ export default function TiltGame() {
 
       {phase === "allDone" && (
         <Celebration
-          title="All 100 weekly TILT levels complete!"
+          title="Weekly TILT run complete!"
           stars={lastStars}
           score={{ label: "levels completed", value: TOTAL_LEVELS }}
-          badges={[`${score.toLocaleString()} points on Level 100`, "Maximum leaderboard progress"]}
-          primary={{ label: "Replay Level 100", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
+          badges={[`${score.toLocaleString()} points on the final challenge`, "Weekly run complete"]}
+          primary={{ label: "Replay final level", onClick: () => startLevel(TOTAL_LEVELS - 1) }}
           secondary={{ label: "Back to Level 1", onClick: () => startLevel(0) }}
-          footnote="Your TILT weekly leaderboard score is 100 completed levels."
           feedback="tilt"
+          finalWeek
         />
       )}
     </div>

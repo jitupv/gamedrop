@@ -252,7 +252,7 @@ export default function Home() {
               <p className="hm-meta">
                 {today.unit === "levels" ? (
                   <>
-                    <b>100 weekly levels</b> - new shared layouts every Monday · ranked by weekly depth
+                    <b>Weekly levels</b> - new shared layouts every Monday · ranked by weekly depth
                   </>
                 ) : (
                   <>
@@ -354,7 +354,7 @@ export default function Home() {
           </div>
           <div className="hm-fact">
             <span className="k">Every Monday</span>
-            <span className="v">Every game gets a fresh 100-level run</span>
+            <span className="v">Every game gets a fresh weekly run</span>
             <span className="d">The same remixed levels for everyone, with a new weekly race.</span>
           </div>
           <div className="hm-fact">
@@ -407,7 +407,7 @@ export default function Home() {
         <div className="hm-sticky-inner">
           <div className="s-info">
             <span className="s-name">
-              {today.unit === "levels" ? `${today.name} - 100 levels` : `${today.name} - Challenge ${chNum}`}
+              {today.unit === "levels" ? `${today.name} - Weekly levels` : `${today.name} - Challenge ${chNum}`}
             </span>
             <span className="s-sub">
               {today.unit === "levels" ? "New layouts every Monday" : `Fresh puzzle in ${midnight}`}
