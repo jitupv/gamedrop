@@ -6,6 +6,7 @@ import { faStar, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { isMuted } from "@/lib/sdk/sound";
 import Countdown from "./Countdown";
 import PuzzleRating from "./PuzzleRating";
+import { SITE_EMAIL } from "@/lib/site";
 
 const CONFETTI_COLORS = ["#c96f4a", "#d9a441", "#8a9a5b", "#6f8fa8", "#9d7a94", "#b25d6d", "#d97706"];
 
@@ -26,6 +27,7 @@ export default function Celebration({
   footnote,
   countdown,
   feedback,
+  finalWeek,
 }: {
   title: string;
   subtitle?: string;
@@ -38,6 +40,7 @@ export default function Celebration({
   footnote?: string;
   countdown?: boolean; // show the live "next challenge at midnight" ticker
   feedback?: string; // game id - shows a one-tap "how was today's puzzle?" emoji row
+  finalWeek?: boolean;
 }) {
   const [display, setDisplay] = useState(0);
   const [hidden, setHidden] = useState(false);
@@ -196,6 +199,18 @@ export default function Celebration({
         </div>
         {feedback && <PuzzleRating game={feedback} />}
         {footnote && <p className="text-xs tx-soft mt-4">{footnote}</p>}
+        {finalWeek && (
+          <p className="text-xs tx-soft mt-4">
+            You finished this week&apos;s run. Come back next Monday for a fresh challenge.{" "}
+            <a
+              className="underline tx-ink font-semibold"
+              href={`mailto:${SITE_EMAIL}?subject=${encodeURIComponent("My JEETLE game idea")}`}
+            >
+              Tell us the game in your mind
+            </a>{" "}
+            and it could become a game everyone can try.
+          </p>
+        )}
         {countdown && (
           <p className="text-xs tx-soft mt-1">
             <Countdown />

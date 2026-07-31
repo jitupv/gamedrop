@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowLeft, faChartColumn, faVolumeHigh, faVolumeXmark } from "@fortawesome/free-solid-svg-icons";
 import { GAMES } from "@/lib/games";
@@ -9,18 +9,37 @@ import { challengeNumber } from "@/lib/sdk/daily";
 import { isMuted, setMuted } from "@/lib/sdk/sound";
 import StatsModal from "./StatsModal";
 import ThemeToggle from "./ThemeToggle";
+import { weekKey } from "@/lib/sdk/weekly";
 
 // In-game header: same glass chrome as the homepage, flips with the theme.
 export default function GameHeader({ gameId }: { gameId: string }) {
   const [num, setNum] = useState<number | null>(null);
   const [muted, setMutedState] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const loadedWeekRef = useRef(weekKey());
   const name = GAMES.find((g) => g.id === gameId)?.name ?? gameId.toUpperCase();
+  const levelGame =
+    gameId === "prism" ||
+    gameId === "tilt" ||
+    gameId === "heist" ||
+    gameId === "sonar" ||
+    gameId === "rush" ||
+    gameId === "trace";
 
   useEffect(() => {
-    setNum(challengeNumber(gameId));
+    if (!levelGame) {
+      setNum(challengeNumber(gameId));
+    }
     setMutedState(isMuted());
-  }, []);
+  }, [gameId, levelGame]);
+
+  useEffect(() => {
+    if (!levelGame) return;
+    const timer = window.setInterval(() => {
+      if (weekKey() !== loadedWeekRef.current) window.location.reload();
+    }, 60000);
+    return () => window.clearInterval(timer);
+  }, [levelGame]);
 
   const toggleMute = () => {
     const next = !muted;
@@ -58,9 +77,11 @@ export default function GameHeader({ gameId }: { gameId: string }) {
           >
             <FontAwesomeIcon icon={faChartColumn} width={13} height={13} />
           </button>
-          <span className="gh-chip text-[10px] font-bold tracking-[0.14em] tabular-nums">
-            {num !== null ? `#${String(num).padStart(2, "0")}` : ""}
-          </span>
+          {!levelGame && num !== null && (
+            <span className="gh-chip text-[10px] font-bold tracking-[0.14em] tabular-nums">
+              #{String(num).padStart(2, "0")}
+            </span>
+          )}
         </div>
       </div>
       {showStats && <StatsModal gameId={gameId} onClose={() => setShowStats(false)} />}

@@ -8,17 +8,18 @@ import {
   ACCEL,
   AXIS_LEN,
   CAR_LEN,
+  CARS_PER_LEVEL,
   CH,
   CRUISE,
   CW,
   Car,
-  DAILY_GOAL,
   Dir,
   GAP,
   HALF,
   LANE,
   STOP,
   SpawnEvent,
+  TOTAL_LEVELS,
   XC,
   YC,
   carRect,
@@ -26,16 +27,22 @@ import {
   isHorizontal,
   makeTrafficStream,
   patienceFor,
+  progressFromCars,
   rectsOverlap,
 } from "./engine";
-import { challengeNumber, todayKey } from "@/lib/sdk/daily";
-import { getStreak, loadResult, saveResult } from "@/lib/sdk/storage";
 import GuideLink from "@/components/GuideLink";
-import { buildShare, challengeUrl, shareResult } from "@/lib/sdk/share";
+import { reportLevelProgress } from "@/lib/sdk/leaderboard";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { applyView, inScreenSpace } from "@/lib/sdk/viewport";
-import Countdown from "@/components/Countdown";
 import PuzzleRating from "@/components/PuzzleRating";
+import Celebration from "@/components/Celebration";
+import {
+  readStoredNumber,
+  weekLabel,
+  weeklySeed,
+  weeklyStorageKey,
+  writeWeeklyProgress,
+} from "@/lib/sdk/weekly";
 
 const COLORS = ["#c96f4a", "#d9a441", "#8a9a5b", "#6f8fa8", "#9d7a94", "#b25d6d"];
 
@@ -60,25 +67,30 @@ interface Debris {
 
 export default function RushGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [num, setNum] = useState(0);
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
+  const [totalCars, setTotalCars] = useState(0);
+  const [completed, setCompleted] = useState(0);
+  const [levelNotice, setLevelNotice] = useState<number | null>(null);
   const [phase, setPhase] = useState<Phase>("ready");
-  const [streak, setStreak] = useState(0);
-  const [copied, setCopied] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [crashHidden, setCrashHidden] = useState(false);
+  const [showFinale, setShowFinale] = useState(false);
 
   const carsRef = useRef<Car[]>([]);
   const lightRef = useRef<"H" | "V">("H");
   const phaseRef = useRef<Phase>("ready");
   const scoreRef = useRef(0);
   const bestRef = useRef(0);
+  const totalCarsRef = useRef(0);
+  const completedRef = useRef(0);
+  const runLevelRef = useRef(1);
+  const noticeTimerRef = useRef<number | null>(null);
   const simTRef = useRef(0);
   const streamRef = useRef<ReturnType<typeof makeTrafficStream> | null>(null);
   const nextEventRef = useRef<SpawnEvent | null>(null);
   // cars whose scheduled arrival has passed but whose entry was still blocked -
-  // held per direction so the day's total traffic stays the same for everyone
+  // held per direction so the seeded traffic stays independent of framerate
   const pendingRef = useRef<Record<Dir, number[]>>({ 0: [], 1: [], 2: [], 3: [] });
   const crashPairRef = useRef<Car[]>([]);
   const crashAtRef = useRef(0);
@@ -87,7 +99,6 @@ export default function RushGame() {
   const patienceRef = useRef(0);
   const shakeRef = useRef(0);
   const portraitRef = useRef(false);
-  const dayRef = useRef("");
 
   const setPhaseBoth = (p: Phase) => {
     phaseRef.current = p;
@@ -99,14 +110,15 @@ export default function RushGame() {
     lightRef.current = "H";
     scoreRef.current = 0;
     setScore(0);
-    const stream = makeTrafficStream(dayRef.current);
+    runLevelRef.current = progressFromCars(totalCarsRef.current).level;
+    const stream = makeTrafficStream(weeklySeed("rush"), runLevelRef.current);
     streamRef.current = stream;
     nextEventRef.current = stream.next();
     pendingRef.current = { 0: [], 1: [], 2: [], 3: [] };
     simTRef.current = 0;
     crashPairRef.current = [];
     debrisRef.current = [];
-    patienceRef.current = patienceFor(0);
+    patienceRef.current = patienceFor(0, runLevelRef.current);
     setCrashHidden(false);
     blip(520, 0.09, "triangle", 0.06);
     setPhaseBoth("run");
@@ -129,15 +141,19 @@ export default function RushGame() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    dayRef.current = todayKey();
-    setNum(challengeNumber("rush"));
-    setStreak(getStreak("rush", dayRef.current));
-    const prior = loadResult("rush", dayRef.current);
-    if (prior) {
-      bestRef.current = prior.score;
-      setBest(prior.score);
-    }
-    if (!window.localStorage.getItem("gd:rush:help")) setShowHelp(true);
+    const savedCars = Math.min(
+      TOTAL_LEVELS * CARS_PER_LEVEL,
+      readStoredNumber(weeklyStorageKey("rush", "total-cars"))
+    );
+    const progress = progressFromCars(savedCars);
+    totalCarsRef.current = savedCars;
+    completedRef.current = progress.completed;
+    bestRef.current = readStoredNumber(weeklyStorageKey("rush", "best-run"));
+    setTotalCars(savedCars);
+    setCompleted(progress.completed);
+    setBest(bestRef.current);
+    writeWeeklyProgress("rush", progress.completed);
+    if (!window.localStorage.getItem("gd:rush:help:v2")) setShowHelp(true);
 
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -190,12 +206,13 @@ export default function RushGame() {
 
     const endRun = () => {
       const s = scoreRef.current;
-      saveResult("rush", dayRef.current, { score: s, won: s >= DAILY_GOAL }, true);
       if (s > bestRef.current) {
         bestRef.current = s;
         setBest(s);
+        try {
+          window.localStorage.setItem(weeklyStorageKey("rush", "best-run"), String(s));
+        } catch {}
       }
-      setStreak(getStreak("rush", dayRef.current));
       setPhaseBoth("crashed");
     };
 
@@ -236,7 +253,7 @@ export default function RushGame() {
           });
         }
 
-        const patience = patienceFor(elapsed);
+        const patience = patienceFor(elapsed, runLevelRef.current);
         patienceRef.current = patience;
         const light = lightRef.current;
         for (const dir of [0, 1, 2, 3] as const) {
@@ -280,10 +297,34 @@ export default function RushGame() {
               // signalling, not a car you waved through, so it earns nothing.
               // Without this, neglecting a road still paid out: on a quiet day
               // the red-runners slipped across empty tarmac and an idle player
-              // could still scrape the daily goal.
+              // could still scrape level progress.
               if (!car.jumped) {
                 scoreRef.current += 1;
                 setScore(scoreRef.current);
+                if (totalCarsRef.current < TOTAL_LEVELS * CARS_PER_LEVEL) {
+                  totalCarsRef.current += 1;
+                  setTotalCars(totalCarsRef.current);
+                  const progress = progressFromCars(totalCarsRef.current);
+                  try {
+                    window.localStorage.setItem(
+                      weeklyStorageKey("rush", "total-cars"),
+                      String(totalCarsRef.current)
+                    );
+                  } catch {}
+                  if (progress.completed > completedRef.current) {
+                    completedRef.current = progress.completed;
+                    setCompleted(progress.completed);
+                    setLevelNotice(progress.completed);
+                    writeWeeklyProgress("rush", progress.completed);
+                    void reportLevelProgress("rush", progress.completed);
+                    if (progress.completed >= TOTAL_LEVELS) {
+                      setPhaseBoth("ready");
+                      setShowFinale(true);
+                    }
+                    if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
+                    noticeTimerRef.current = window.setTimeout(() => setLevelNotice(null), 2400);
+                  }
+                }
               }
             }
           }
@@ -502,7 +543,11 @@ export default function RushGame() {
           ctx.font = "bold 24px ui-sans-serif, system-ui";
           ctx.fillText("tap to open the intersection", elW / 2, elH / 2 - 110);
           ctx.font = "15px ui-sans-serif, system-ui";
-          ctx.fillText(`every tap switches the light · ${DAILY_GOAL} cars = daily goal`, elW / 2, elH / 2 - 84);
+          ctx.fillText(
+            `every tap switches the light · ${CARS_PER_LEVEL} safe cars = one level`,
+            elW / 2,
+            elH / 2 - 84
+          );
         }
       });
 
@@ -515,48 +560,60 @@ export default function RushGame() {
       mq.removeEventListener("change", applyOrientation);
       canvas.removeEventListener("pointerdown", onDown);
       window.removeEventListener("keydown", onKey);
+      if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const share = async () => {
-    // traffic bar: one car per 5 passed, capped at a lane of 10
-    const lane = "🚗".repeat(Math.max(1, Math.min(10, Math.floor(best / 5))));
-    const text = buildShare("RUSH", num, [
-      `🚦${lane}`,
-      `${best} cars${best >= DAILY_GOAL ? " · goal cleared ✅" : ` · goal ${DAILY_GOAL}`}`,
-    ], challengeUrl(best));
-    const outcome = await shareResult(text, {
-      game: "RUSH",
-      num,
-      emoji: "🚦",
-      accent: "#ffa23e",
-      headline: `${best} cars`,
-      lines: [`🚦${lane}`, best >= DAILY_GOAL ? "Daily goal cleared ✅" : `Goal: ${DAILY_GOAL} cars`],
-      streak,
-    });
-    setCopied(outcome !== "failed");
-    window.setTimeout(() => setCopied(false), 2000);
-  };
+  const progress = progressFromCars(totalCars);
+  const progressPct = (progress.carsInLevel / CARS_PER_LEVEL) * 100;
 
   return (
     <div className="relative w-full h-full flex flex-col">
       <div className="stat-bar shrink-0">
         <div className="stat">
-          <span className="lab">Cars</span>
+          <span className="lab">Level</span>
+          <span className="val">{progress.level}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">Completed</span>
+          <span className="val">{progress.completed}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">This level</span>
+          <span className="val">{progress.carsInLevel}/{CARS_PER_LEVEL}</span>
+        </div>
+        <div className="stat">
+          <span className="lab">This run</span>
           <span className="val">{score}</span>
         </div>
         <div className="stat">
-          <span className="lab">Goal</span>
-          <span className="val">{DAILY_GOAL}</span>
+          <span className="lab">Week</span>
+          <span className="val">{weekLabel()}</span>
         </div>
         <div className="stat">
-          <span className="lab">Best</span>
+          <span className="lab">Best run</span>
           <span className="val">{best}</span>
         </div>
-        <div className="stat">
-          <span className="lab">Streak</span>
-          <span className="val">{streak}🔥</span>
+      </div>
+
+      {levelNotice !== null && (
+        <div className="shrink-0 mx-2 mt-1 rounded-full bg-[#ffa23e] px-3 py-1 text-center text-xs font-bold text-[#241b13]">
+          Level {levelNotice} complete!{" "}
+          {levelNotice < TOTAL_LEVELS ? `Level ${levelNotice + 1} unlocked` : "Weekly run complete"}
+        </div>
+      )}
+
+      <div className="shrink-0 px-3 pt-1.5 pb-1">
+        <div className="mb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.12em] tx-muted">
+          <span>Level {progress.level} progress</span>
+          <span>{progress.carsInLevel}/{CARS_PER_LEVEL} safe cars</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
+          <div
+            className="h-full rounded-full bg-[#ffa23e] transition-[width] duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
         </div>
       </div>
 
@@ -565,8 +622,9 @@ export default function RushGame() {
       </div>
 
       <p className="hint shrink-0">
-        tap anywhere<span className="hidden sm:inline"> (or space)</span> to switch the light · don&apos;t
-        let them touch · <button onClick={() => setShowHelp(true)}>how to play?</button>
+        tap anywhere<span className="hidden sm:inline"> (or space)</span> to switch the light ·{" "}
+        {CARS_PER_LEVEL} safe cars complete a level · progress survives crashes ·{" "}
+        <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
       {showHelp && (
@@ -578,7 +636,7 @@ export default function RushGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:rush:help", "1");
+                  window.localStorage.setItem("gd:rush:help:v2", "1");
                 } catch {}
               }}
             >
@@ -592,7 +650,7 @@ export default function RushGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">2. Cars keep coming, faster and faster.</span>{" "}
-                Everyone gets the same traffic today.
+                Each saved level also makes traffic and impatient drivers slightly tougher.
               </li>
               <li>
                 <span className="tx-ink font-semibold">3. One touch = game over.</span> A car
@@ -604,15 +662,18 @@ export default function RushGame() {
                 the light. Red-runners don&apos;t score - you can&apos;t favour one road.
               </li>
               <li>
-                <span className="tx-ink font-semibold">5. Pass {DAILY_GOAL} cars</span> to clear
-                the daily goal. Then chase the high score.
+                <span className="tx-ink font-semibold">
+                  5. Every {CARS_PER_LEVEL} safe cars completes a level.
+                </span>{" "}
+                Progress is cumulative across runs during the week, so a crash does not take
+                completed cars away. Monday starts a shared traffic remix; your career best remains saved.
               </li>
             </ol>
             <button
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:rush:help", "1");
+                  window.localStorage.setItem("gd:rush:help:v2", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
@@ -644,24 +705,42 @@ export default function RushGame() {
             <div className="text-4xl mb-2">💥</div>
             <h2 className="font-serif text-2xl font-bold tx-ink mb-1">Pile-up!</h2>
             <p className="tx-muted mb-1">
-              RUSH #{num}: <span className="tx-ink font-bold">{score} cars</span>
-              {score >= DAILY_GOAL ? " · daily goal cleared ✅" : ` · goal is ${DAILY_GOAL}`}
+              <span className="tx-ink font-bold">{score} cars</span> passed this run
             </p>
-            <p className="text-xs tx-soft mb-4">Best today: {best}</p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={share} className="btn-ink px-5 py-2.5">
-                {copied ? "Shared ✓" : "Challenge a friend"}
-              </button>
-              <button onClick={startRun} className="btn-line px-5 py-2.5">
-                Again
-              </button>
-            </div>
+            <p className="text-xs tx-soft mb-4">
+              Level {progress.level} · {progress.carsInLevel}/{CARS_PER_LEVEL} cars · best run {best}
+            </p>
+            <button onClick={startRun} className="btn-ink px-6 py-2.5">
+              Again
+            </button>
             <PuzzleRating game="rush" quiet />
-            <p className="text-xs tx-soft mt-4">
-              Same traffic for everyone · <Countdown prefix="new rush in" />
-            </p>
+            <p className="text-xs tx-soft mt-4">Weekly completed-level progress is saved automatically.</p>
           </div>
         </div>
+      )}
+
+      {showFinale && (
+        <Celebration
+          title="Weekly RUSH run complete!"
+          stars={3}
+          score={{ label: "levels completed", value: progress.completed }}
+          badges={[`${score} cars this run`, "Weekly run complete"]}
+          primary={{
+            label: "Keep playing",
+            onClick: () => {
+              setShowFinale(false);
+              startRun();
+            },
+          }}
+          secondary={{
+            label: "Back home",
+            onClick: () => {
+              window.location.href = "/";
+            },
+          }}
+          feedback="rush"
+          finalWeek
+        />
       )}
     </div>
   );

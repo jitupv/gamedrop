@@ -1,8 +1,5 @@
-import type { Metadata } from "next";
-import GameGuide, { guideMetadata } from "@/components/GameGuide";
+import { notFound } from "next/navigation";
 
-export const metadata: Metadata = guideMetadata("orbit");
-
-export default function OrbitHowToPlay() {
-  return <GameGuide gameId="orbit" />;
+export default function OrbitGuidePage() {
+  notFound();
 }

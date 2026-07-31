@@ -13,8 +13,16 @@ import {
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { GameMeta } from "@/lib/games";
-import { todayKey } from "@/lib/sdk/daily";
-import { Board, fetchBoard, leaderboardEnabled } from "@/lib/sdk/leaderboard";
+import {
+  Board,
+  fetchWeeklyOverallBoard,
+  leaderboardEnabled,
+} from "@/lib/sdk/leaderboard";
+import {
+  previousWeekKey,
+  weekKey,
+  weekLabel,
+} from "@/lib/sdk/weekly";
 
 // The "come beat them" leaderboard, shown as a modal from the hero button.
 export default function HomeBoard({
@@ -27,19 +35,27 @@ export default function HomeBoard({
   onClose: () => void;
 }) {
   const [board, setBoard] = useState<Board | null | undefined>(undefined);
+  const [previousBoard, setPreviousBoard] = useState<Board | null | undefined>(undefined);
   const enabled = leaderboardEnabled();
+  const week = weekKey();
 
   useEffect(() => {
     if (!leaderboardEnabled()) return;
     let on = true;
     setBoard(undefined);
-    fetchBoard(game.id, "daily", todayKey(), game.higherIsBetter, 8).then((b) => {
-      if (on) setBoard(b);
+    Promise.all([
+      fetchWeeklyOverallBoard(week, 8),
+      fetchWeeklyOverallBoard(previousWeekKey(week), 3),
+    ]).then(([current, previous]) => {
+      if (on) {
+        setBoard(current);
+        setPreviousBoard(previous);
+      }
     });
     return () => {
       on = false;
     };
-  }, [game.id, game.higherIsBetter]);
+  }, [week]);
 
   const rows = board?.rows ?? [];
   // podium render order: 2nd | 1st | 3rd - champion in the middle, elevated
@@ -65,7 +81,7 @@ export default function HomeBoard({
         <div className="hb-card">
           <div className="hb-head">
             <span className="hb-live">
-              <i className="dot" /> Live · today&apos;s {game.name} board
+              <i className="dot" /> Live · Weekly Level Race {weekLabel(week)}
             </span>
             <span className="hb-sub">
               <FontAwesomeIcon icon={faUsers} width={11} height={11} /> {board?.total ?? 0} playing
@@ -88,11 +104,19 @@ export default function HomeBoard({
             </div>
           )}
 
-          {enabled && board !== undefined && rows.length === 0 && (
+          {enabled && board === null && (
             <div className="hb-empty">
               <FontAwesomeIcon icon={faBolt} width={26} height={26} />
-              <h3>Nobody has cracked today&apos;s {game.name} yet.</h3>
-              <p>The board is wide open - the first name on it is remembered all day.</p>
+              <h3>Couldn&apos;t load the weekly board.</h3>
+              <p>Check the connection and confirm the leaderboard SQL migration has been run.</p>
+            </div>
+          )}
+
+          {enabled && board && rows.length === 0 && (
+            <div className="hb-empty">
+              <FontAwesomeIcon icon={faBolt} width={26} height={26} />
+              <h3>No weekly progress yet.</h3>
+              <p>Complete a level in any active game to claim the first spot.</p>
             </div>
           )}
 
@@ -111,7 +135,7 @@ export default function HomeBoard({
                         {r.mine ? " (you)" : ""}
                       </span>
                       <span className="s">
-                        {r.score.toLocaleString()} {game.unit}
+                        {r.score.toLocaleString()} levels
                       </span>
                     </div>
                   ) : (
@@ -137,7 +161,7 @@ export default function HomeBoard({
                         {r.mine ? " (you)" : ""}
                       </span>
                       <span className="s">
-                        {r.score.toLocaleString()} {game.unit}
+                        {r.score.toLocaleString()} levels
                       </span>
                     </li>
                   ))}
@@ -152,7 +176,7 @@ export default function HomeBoard({
                   {board.myScore !== null && (
                     <>
                       {" "}
-                      · {board.myScore.toLocaleString()} {game.unit}
+                      · {board.myScore.toLocaleString()} levels
                     </>
                   )}
                 </p>
@@ -160,10 +184,22 @@ export default function HomeBoard({
             </>
           )}
 
+          {previousBoard && previousBoard.rows.length > 0 && (
+            <p className="text-xs tx-soft text-center mt-3">
+              Last week:{" "}
+              {previousBoard.rows
+                .slice(0, 3)
+                .map((row, index) => `${["🥇", "🥈", "🥉"][index]} ${row.handle}`)
+                .join(" · ")}
+            </p>
+          )}
+
           <div className="hb-foot">
-            <span className="hb-note">Same puzzle for everyone · resets at midnight</span>
+            <span className="hb-note">
+              Across every live game · new shared layouts every Monday
+            </span>
             <Link href={game.path} className="hb-cta">
-              {rows.length === 0 ? "Claim the top spot" : "Beat them"}{" "}
+              {rows.length === 0 ? "Claim the top spot" : "Improve your total"}{" "}
               <FontAwesomeIcon icon={faArrowRight} width={13} height={13} />
             </Link>
           </div>

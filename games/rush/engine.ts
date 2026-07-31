@@ -13,7 +13,25 @@ export const CAR_W = 24;
 export const GAP = 14; // bumper gap when queuing
 export const CRUISE = 175; // px/s
 export const ACCEL = 380; // px/s^2
-export const DAILY_GOAL = 25; // cars passed = daily challenge cleared
+export const CARS_PER_LEVEL = 50;
+export const TOTAL_LEVELS = 100;
+
+export interface RushProgress {
+  completed: number;
+  level: number;
+  carsInLevel: number;
+}
+
+export function progressFromCars(totalCars: number): RushProgress {
+  const value = Number.isFinite(totalCars) ? totalCars : 0;
+  const safeCars = Math.max(0, Math.min(TOTAL_LEVELS * CARS_PER_LEVEL, Math.floor(value)));
+  const completed = Math.min(TOTAL_LEVELS, Math.floor(safeCars / CARS_PER_LEVEL));
+  return {
+    completed,
+    level: completed >= TOTAL_LEVELS ? TOTAL_LEVELS : completed + 1,
+    carsInLevel: completed >= TOTAL_LEVELS ? CARS_PER_LEVEL : safeCars % CARS_PER_LEVEL,
+  };
+}
 
 // Drivers will not sit on a red forever. Without this, leaving one light green
 // was a risk-free infinite score: the ignored road just queued up quietly and
@@ -40,8 +58,9 @@ export interface Car {
 
 // How long the front car of a red queue tolerates the wait. Tightens as the
 // traffic thickens so the endgame squeezes from both sides at once.
-export function patienceFor(elapsed: number): number {
-  return Math.max(PATIENCE_MIN, PATIENCE_MAX - elapsed * 0.045);
+export function patienceFor(elapsed: number, level = 1): number {
+  const levelPressure = (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) * 0.008;
+  return Math.max(PATIENCE_MIN, PATIENCE_MAX - levelPressure - elapsed * 0.045);
 }
 
 // Visible tell before a car runs the red: it sits still, then starts inching
@@ -94,22 +113,22 @@ export interface SpawnEvent {
   color: number;
 }
 
-// The day's traffic, as a schedule rather than a per-frame dice roll.
+// A run's seeded traffic, as a schedule rather than a per-frame dice roll.
 //
 // The old spawner drew its jitter inside the "is it time yet?" check, so it
 // burned a random number every frame (~60/s) and rolled a direction again on
 // every rejected spawn. Both made the stream depend on the player's framerate
-// and their own light choices, which quietly broke the "same traffic for
-// everyone today" promise the game prints in two places. Here each event
+// and their own light choices, which quietly broke deterministic traffic.
+// Here each event
 // consumes exactly one draw per field, and its time comes from the schedule
 // rather than the clock, so the sequence is identical on a 60Hz laptop and a
 // 120Hz phone no matter how the player drives it.
-export function makeTrafficStream(dayKey: string) {
-  const rng = mulberry32(hashSeed(`rush:${dayKey}`));
+export function makeTrafficStream(seedKey: string, level = 1) {
+  const rng = mulberry32(hashSeed(`rush:${seedKey}`));
   let t = 0;
   return {
     next(): SpawnEvent {
-      t += spawnInterval(t) * (0.78 + rng() * 0.44);
+      t += spawnInterval(t, level) * (0.78 + rng() * 0.44);
       return { t, dir: Math.floor(rng() * 4) as Dir, color: Math.floor(rng() * 6) };
     },
   };
@@ -118,8 +137,9 @@ export function makeTrafficStream(dayKey: string) {
 // Ramps for 75s and then floors. The floor is deliberately below what any
 // alternation pattern can serve: at 0.30s a spawn arrives every ~1.2s per
 // direction while a green axis only drains ~2.9 cars/s, so both axes together
-// demand more than 100% of the light's time. That gives the high score a real
-// ceiling instead of letting a steady player idle at a plateau forever.
-export function spawnInterval(elapsed: number): number {
-  return Math.max(0.3, 2.4 - elapsed * 0.028);
+// demand more than 100% of the light's time. That gives each run a real ceiling
+// instead of letting a steady player idle at a plateau forever.
+export function spawnInterval(elapsed: number, level = 1): number {
+  const levelPressure = 1 - (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) * 0.0022;
+  return Math.max(0.3, (2.4 - elapsed * 0.028) * levelPressure);
 }

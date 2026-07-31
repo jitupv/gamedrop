@@ -1,6 +1,5 @@
-// HEIST core: seeded museum generation + turn simulation.
-// A level is only shipped if a spacetime BFS proves the exit is reachable
-// without being caught, and every gem is physically reachable.
+// HEIST core: deterministic campaign generation + turn simulation.
+// Each level is built around a safe, self-avoiding route that collects every gem.
 import { hashSeed, mulberry32 } from "@/lib/sdk/rng";
 
 export interface Cell {
@@ -21,6 +20,7 @@ export interface HeistLevel {
   start: Cell;
   exit: Cell;
   guards: Guard[];
+  solutionSteps: number;
 }
 
 export interface HeistCfg {
@@ -28,23 +28,33 @@ export interface HeistCfg {
   rows: number;
   guards: number;
   gems: number;
+  wallRatio: number;
+  minSteps: number;
 }
 
-// fewer, BIGGER tiles - phone-friendly touch targets; the difficulty comes
-// from guards + the all-gems vault lock + the no-revisit rule, not from size
-export const LEVELS: HeistCfg[] = [
-  { cols: 9, rows: 7, guards: 2, gems: 3 },
-  { cols: 10, rows: 7, guards: 3, gems: 4 },
-  { cols: 11, rows: 8, guards: 4, gems: 4 },
-];
+export const TOTAL_LEVELS = 100;
 
-// endless mode: museums keep growing and gaining guards, forever
-export function endlessCfg(i: number): HeistCfg {
+export function levelCfg(levelIdx: number): HeistCfg {
+  const n = Math.max(0, Math.min(TOTAL_LEVELS - 1, levelIdx));
+  if (n < 10) {
+    return {
+      cols: 8 + Math.floor(n / 4),
+      rows: 7 + Math.floor(n / 5),
+      guards: 1 + Math.floor((n + 2) / 4),
+      gems: 3 + Math.floor(n / 4),
+      wallRatio: 0.07 + n * 0.006,
+      minSteps: 10 + n * 2,
+    };
+  }
+
+  const advanced = n - 9;
   return {
-    cols: Math.min(13, 9 + Math.floor(i / 2)),
-    rows: Math.min(9, 7 + Math.floor(i / 3)),
-    guards: Math.min(5, 2 + Math.floor((i + 1) / 2)),
-    gems: Math.min(5, 3 + Math.floor(i / 3)),
+    cols: Math.min(13, 10 + Math.floor(advanced / 28)),
+    rows: Math.min(10, 8 + Math.floor(advanced / 40)),
+    guards: Math.min(6, 3 + Math.floor(advanced / 25)),
+    gems: Math.min(6, 5 + Math.floor(advanced / 45)),
+    wallRatio: Math.min(0.22, 0.13 + advanced * 0.001),
+    minSteps: Math.min(58, 28 + Math.floor(advanced / 3)),
   };
 }
 
@@ -72,122 +82,95 @@ function rectLoop(x0: number, y0: number, w: number, h: number): Cell[] {
   return path;
 }
 
-function plainBFS(lv: Pick<HeistLevel, "cols" | "rows" | "walls">, from: Cell, to: Cell): boolean {
-  const seen = new Set<string>([`${from.c},${from.r}`]);
-  const q: Cell[] = [from];
-  while (q.length > 0) {
-    const cur = q.shift() as Cell;
-    if (cur.c === to.c && cur.r === to.r) return true;
-    for (const [dc, dr] of [
-      [1, 0],
-      [-1, 0],
-      [0, 1],
-      [0, -1],
-    ]) {
-      const c = cur.c + dc;
-      const r = cur.r + dr;
-      const key = `${c},${r}`;
-      if (c < 0 || r < 0 || c >= lv.cols || r >= lv.rows || lv.walls[r][c] || seen.has(key)) continue;
-      seen.add(key);
-      q.push({ c, r });
-    }
-  }
-  return false;
+export function genProgressLevel(levelIdx: number, seasonKey = "all"): HeistLevel {
+  const safeIndex = Math.max(0, Math.min(TOTAL_LEVELS - 1, levelIdx));
+  return genLevelFrom(`heist:weekly:v1:${seasonKey}:L${safeIndex + 1}`, levelCfg(safeIndex));
 }
 
-// full-loot, NO-REVISIT proof: one self-avoiding route must collect EVERY gem
-// and END on the exit, dodging moving guards - exactly the rules the player
-// plans under (each tile once, vault locked until the bag is full).
-function fullLootRoute(lv: HeistLevel, budget = 150000): boolean {
-  const fullMask = (1 << lv.gems.length) - 1;
-  const gemIdx = new Map<number, number>();
-  lv.gems.forEach((gm, i) => gemIdx.set(gm.r * lv.cols + gm.c, i));
-  const startId = lv.start.r * lv.cols + lv.start.c;
-  const startGem = gemIdx.get(startId);
-  const startMask = startGem === undefined ? 0 : 1 << startGem;
-  const visited = new Uint8Array(lv.cols * lv.rows);
-  visited[startId] = 1;
+function buildReferenceRoute(
+  cols: number,
+  rows: number,
+  start: Cell,
+  exit: Cell,
+  minSteps: number,
+  rng: () => number
+): Cell[] | null {
+  const visited = new Uint8Array(cols * rows);
+  const path: Cell[] = [{ ...start }];
+  visited[start.r * cols + start.c] = 1;
+  const directSteps = Math.abs(exit.c - start.c) + Math.abs(exit.r - start.r);
+  // A grid route must have the same odd/even parity as the direct distance.
+  const targetSteps = Math.min(
+    cols * rows - 1,
+    Math.max(minSteps, directSteps) + ((Math.max(minSteps, directSteps) - directSteps) % 2)
+  );
   let nodes = 0;
 
-  const dirs = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-  ];
+  const dfs = (c: number, r: number): boolean => {
+    if (nodes++ > 180000) return false;
+    const steps = path.length - 1;
+    if (c === exit.c && r === exit.r) return steps === targetSteps;
+    if (steps >= targetSteps) return false;
 
-  const dfs = (c: number, r: number, t: number, mask: number): boolean => {
-    if (nodes++ > budget) return false; // search blowout - reject, try next seed
-    if (mask === fullMask && c === lv.exit.c && r === lv.exit.r) return true;
-
-    // move ordering: head toward the nearest missing gem (exit once bag is full)
-    let target: Cell = lv.exit;
-    if (mask !== fullMask) {
-      let bd = Infinity;
-      lv.gems.forEach((gm, i) => {
-        if (mask & (1 << i)) return;
-        const d = Math.abs(gm.c - c) + Math.abs(gm.r - r);
-        if (d < bd) {
-          bd = d;
-          target = gm;
-        }
+    const options = [
+      { c: c + 1, r, noise: rng() },
+      { c: c - 1, r, noise: rng() },
+      { c, r: r + 1, noise: rng() },
+      { c, r: r - 1, noise: rng() },
+    ]
+      .filter((p) => {
+        if (p.c < 0 || p.r < 0 || p.c >= cols || p.r >= rows) return false;
+        if (visited[p.r * cols + p.c]) return false;
+        if (p.c === exit.c && p.r === exit.r && steps + 1 < targetSteps) return false;
+        const distance = Math.abs(exit.c - p.c) + Math.abs(exit.r - p.r);
+        return steps + 1 + distance <= targetSteps;
+      })
+      .sort((a, b) => {
+        const da = Math.abs(exit.c - a.c) + Math.abs(exit.r - a.r);
+        const db = Math.abs(exit.c - b.c) + Math.abs(exit.r - b.r);
+        // Wander before the minimum length; home in on the exit afterwards.
+        const distanceOrder = steps < targetSteps - directSteps ? db - da : da - db;
+        return distanceOrder || a.noise - b.noise;
       });
-    }
-    const opts = dirs
-      .map(([dc, dr]) => ({ c: c + dc, r: r + dr }))
-      .filter(
-        (p) => p.c >= 0 && p.r >= 0 && p.c < lv.cols && p.r < lv.rows && !lv.walls[p.r][p.c]
-      )
-      .sort(
-        (a, b) =>
-          Math.abs(a.c - target.c) + Math.abs(a.r - target.r) -
-          (Math.abs(b.c - target.c) + Math.abs(b.r - target.r))
-      );
 
-    for (const p of opts) {
-      const id = p.r * lv.cols + p.c;
-      if (visited[id]) continue;
-      const gi = gemIdx.get(id);
-      const m2 = gi === undefined ? mask : mask | (1 << gi);
-      // the exit is a locked door until every gem is in the bag
-      if (p.c === lv.exit.c && p.r === lv.exit.r && m2 !== fullMask) continue;
-      if (caughtAt(lv.guards, { c, r }, p, t + 1)) continue;
+    for (const next of options) {
+      const id = next.r * cols + next.c;
       visited[id] = 1;
-      if (dfs(p.c, p.r, t + 1, m2)) return true;
+      path.push({ c: next.c, r: next.r });
+      if (dfs(next.c, next.r)) return true;
+      path.pop();
       visited[id] = 0;
     }
     return false;
   };
 
-  return dfs(lv.start.c, lv.start.r, 0, startMask);
-}
-
-export function genLevel(dayKey: string, levelIdx: number): HeistLevel {
-  return genLevelFrom(`heist:${dayKey}:L${levelIdx}`, LEVELS[levelIdx]);
+  return dfs(start.c, start.r) ? path : null;
 }
 
 export function genLevelFrom(seedBase: string, cfg: HeistCfg): HeistLevel {
-  for (let attempt = 0; attempt < 30; attempt++) {
+  for (let attempt = 0; attempt < 120; attempt++) {
     const rng = mulberry32(hashSeed(`${seedBase}:${attempt}`));
     const { cols, rows } = cfg;
-    const walls: boolean[][] = Array.from({ length: rows }, () => Array(cols).fill(false));
     const start: Cell = { c: 0, r: Math.floor(rows / 2) };
     const exit: Cell = { c: cols - 1, r: Math.floor(rows / 2) };
+    const solution = buildReferenceRoute(cols, rows, start, exit, cfg.minSteps, rng);
+    if (!solution) continue;
 
-    // scatter display cases (walls)
-    const wallCount = Math.floor(cols * rows * 0.13);
-    for (let i = 0; i < wallCount; i++) {
-      const c = Math.floor(rng() * cols);
-      const r = Math.floor(rng() * rows);
-      if ((Math.abs(c - start.c) + Math.abs(r - start.r)) < 2) continue;
-      if ((Math.abs(c - exit.c) + Math.abs(r - exit.r)) < 2) continue;
-      walls[r][c] = true;
+    // Place every gem visibly on the proven route, away from its endpoints.
+    const gems: Cell[] = [];
+    for (let i = 0; i < cfg.gems; i++) {
+      const index = Math.floor(((i + 1) * (solution.length - 1)) / (cfg.gems + 1));
+      const gem = solution[Math.max(1, Math.min(solution.length - 2, index))];
+      if (gems.some((g) => g.c === gem.c && g.r === gem.r)) break;
+      gems.push({ ...gem });
     }
+    if (gems.length < cfg.gems) continue;
 
-    // guards on rectangular patrol loops; loop cells are always floor
+    // Patrol loops must cross the route so every guard matters, but the
+    // reference timing is checked against same-cell and swap collisions.
     const guards: Guard[] = [];
     let guardTries = 0;
-    while (guards.length < cfg.guards && guardTries < 60) {
+    while (guards.length < cfg.guards && guardTries < 600) {
       guardTries++;
       const w = 3 + Math.floor(rng() * 3);
       const h = 2 + Math.floor(rng() * 3);
@@ -195,32 +178,55 @@ export function genLevelFrom(seedBase: string, cfg: HeistCfg): HeistLevel {
       const y0 = Math.floor(rng() * (rows - h));
       const path = rectLoop(x0, y0, w, h);
       if (path.some((p) => (p.c === start.c && p.r === start.r) || (p.c === exit.c && p.r === exit.r))) continue;
-      for (const p of path) walls[p.r][p.c] = false;
-      guards.push({ path, offset: Math.floor(rng() * path.length) });
+      if (path.some((p) => gems.some((g) => g.c === p.c && g.r === p.r))) continue;
+      if (!path.some((p) => solution.some((s) => s.c === p.c && s.r === p.r))) continue;
+      const candidate: Guard = { path, offset: Math.floor(rng() * path.length) };
+      let safe = true;
+      for (let t = 1; t < solution.length; t++) {
+        if (caughtAt([candidate], solution[t - 1], solution[t], t)) {
+          safe = false;
+          break;
+        }
+      }
+      if (!safe) continue;
+      const initial = guardAt(candidate, 0);
+      if (guards.some((g) => {
+        const other = guardAt(g, 0);
+        return other.c === initial.c && other.r === initial.r;
+      })) continue;
+      guards.push(candidate);
     }
+    if (guards.length < cfg.guards) continue;
 
-    // gems on floor cells, spread out
-    const gems: Cell[] = [];
-    let gemTries = 0;
-    while (gems.length < cfg.gems && gemTries < 200) {
-      gemTries++;
-      const c = 1 + Math.floor(rng() * (cols - 2));
+    // Display cases never block the proven route, gems, or patrol loops.
+    const walls: boolean[][] = Array.from({ length: rows }, () => Array(cols).fill(false));
+    const protectedCells = new Set<string>(solution.map((p) => `${p.c},${p.r}`));
+    for (const guard of guards) {
+      for (const p of guard.path) protectedCells.add(`${p.c},${p.r}`);
+    }
+    const wallCount = Math.floor(cols * rows * cfg.wallRatio);
+    let wallsPlaced = 0;
+    for (let tries = 0; wallsPlaced < wallCount && tries < wallCount * 12; tries++) {
+      const c = Math.floor(rng() * cols);
       const r = Math.floor(rng() * rows);
-      if (walls[r][c]) continue;
-      if (Math.abs(c - start.c) + Math.abs(r - start.r) < 3) continue;
-      if (Math.abs(c - exit.c) + Math.abs(r - exit.r) < 2) continue;
-      if (gems.some((gm) => Math.abs(gm.c - c) + Math.abs(gm.r - r) < 3)) continue;
-      gems.push({ c, r });
+      if (protectedCells.has(`${c},${r}`) || walls[r][c]) continue;
+      walls[r][c] = true;
+      wallsPlaced++;
     }
 
-    const lv: HeistLevel = { cols, rows, walls, gems, start, exit, guards };
-    if (gems.length < cfg.gems) continue;
-    if (!plainBFS(lv, start, exit)) continue;
-    if (!gems.every((gm) => plainBFS(lv, start, gm))) continue;
-    if (!fullLootRoute(lv)) continue;
-    return lv;
+    return {
+      cols,
+      rows,
+      walls,
+      gems,
+      start,
+      exit,
+      guards,
+      solutionSteps: solution.length - 1,
+    };
   }
-  // deterministic fallback: guard-free open room (should practically never happen)
+
+  // Marked fallback so validation can reject any campaign seed that reaches it.
   const { cols, rows } = cfg;
   return {
     cols,
@@ -230,5 +236,6 @@ export function genLevelFrom(seedBase: string, cfg: HeistCfg): HeistLevel {
     start: { c: 0, r: Math.floor(rows / 2) },
     exit: { c: cols - 1, r: Math.floor(rows / 2) },
     guards: [],
+    solutionSteps: 0,
   };
 }

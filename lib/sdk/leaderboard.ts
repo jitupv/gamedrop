@@ -2,6 +2,7 @@
 // Everything here no-ops gracefully when the env keys are missing,
 // so the game works fully offline/local until Supabase is configured.
 import { SupabaseClient, createClient } from "@supabase/supabase-js";
+import { weekKey } from "./weekly";
 
 let client: SupabaseClient | null | undefined;
 
@@ -62,47 +63,62 @@ async function ensureUser(): Promise<string | null> {
 
 // ---- writing scores ----------------------------------------------------
 
+async function writeScore(
+  game: string,
+  mode: "daily" | "endless" | "levels",
+  day: string,
+  score: number,
+  higherIsBetter: boolean
+): Promise<void> {
+  const s = sb();
+  if (!s || typeof window === "undefined") return;
+  try {
+    const uid = await ensureUser();
+    if (!uid) return;
+    // only touch the row if this run is an improvement
+    const { data: existing } = await s
+      .from("scores")
+      .select("score")
+      .eq("user_id", uid)
+      .eq("game", game)
+      .eq("mode", mode)
+      .eq("day", day)
+      .maybeSingle();
+    if (
+      existing &&
+      (higherIsBetter ? existing.score >= score : existing.score <= score)
+    )
+      return;
+    await s.from("scores").upsert(
+      { user_id: uid, handle: myHandle(), game, mode, day, score },
+      { onConflict: "user_id,game,mode,day" }
+    );
+  } catch {
+    // network/offline - local play continues untouched
+  }
+}
+
 // fire-and-forget: never blocks or breaks gameplay
 export function submitScore(
   game: string,
-  mode: "daily" | "endless",
-  day: string, // 'YYYY-MM-DD' for daily, 'all' for endless
+  mode: "daily" | "endless" | "levels",
+  day: string,
   score: number,
   higherIsBetter: boolean
 ): void {
-  const s = sb();
-  if (!s || typeof window === "undefined") return;
-  void (async () => {
-    try {
-      const uid = await ensureUser();
-      if (!uid) return;
-      // only touch the row if this run is an improvement
-      const { data: existing } = await s
-        .from("scores")
-        .select("score")
-        .eq("user_id", uid)
-        .eq("game", game)
-        .eq("mode", mode)
-        .eq("day", day)
-        .maybeSingle();
-      if (
-        existing &&
-        (higherIsBetter ? existing.score >= score : existing.score <= score)
-      )
-        return;
-      await s.from("scores").upsert(
-        { user_id: uid, handle: myHandle(), game, mode, day, score },
-        { onConflict: "user_id,game,mode,day" }
-      );
-    } catch {
-      // network/offline - local play continues untouched
-    }
-  })();
+  void writeScore(game, mode, day, score, higherIsBetter);
 }
 
 // endless bests are always "higher is better" (levels survived / points)
 export function reportEndlessBest(game: string, score: number): void {
   submitScore(game, "endless", "all", score, true);
+}
+
+export function reportLevelProgress(game: string, completed: number): void {
+  void (async () => {
+    await writeScore(game, "levels", weekKey(), completed, true);
+    await writeScore(game, "levels", "all", completed, true);
+  })();
 }
 
 // ---- optional accounts (guest-first; email upgrade keeps the same identity) ----
@@ -202,6 +218,8 @@ export interface BoardRow {
   handle: string;
   score: number;
   mine: boolean;
+  gamesPlayed?: number;
+  gamesMastered?: number;
 }
 
 export interface Board {
@@ -213,7 +231,7 @@ export interface Board {
 
 export async function fetchBoard(
   game: string,
-  mode: "daily" | "endless",
+  mode: "daily" | "endless" | "levels",
   day: string,
   higherIsBetter: boolean,
   limit = 10
@@ -258,6 +276,60 @@ export async function fetchBoard(
     }
     return {
       rows: data.map((r) => ({ handle: r.handle, score: r.score, mine: r.user_id === uid })),
+      total: count ?? 0,
+      myRank,
+      myScore,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchWeeklyOverallBoard(
+  week = weekKey(),
+  limit = 10
+): Promise<Board | null> {
+  const s = sb();
+  if (!s) return null;
+  try {
+    const uid = (await s.auth.getSession()).data.session?.user.id ?? null;
+    const { data, count, error } = await s
+      .from("weekly_level_totals")
+      .select("user_id,handle,score,games_played,games_mastered", { count: "exact" })
+      .eq("week", week)
+      .order("score", { ascending: false })
+      .order("games_mastered", { ascending: false })
+      .limit(limit);
+    if (error || !data) return null;
+
+    let myRank: number | null = null;
+    let myScore: number | null = null;
+    if (uid) {
+      const { data: mine } = await s
+        .from("weekly_level_totals")
+        .select("score")
+        .eq("week", week)
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (mine) {
+        myScore = mine.score;
+        const better = await s
+          .from("weekly_level_totals")
+          .select("user_id", { count: "exact", head: true })
+          .eq("week", week)
+          .gt("score", myScore);
+        myRank = (better.count ?? 0) + 1;
+      }
+    }
+
+    return {
+      rows: data.map((row) => ({
+        handle: row.handle,
+        score: row.score,
+        mine: row.user_id === uid,
+        gamesPlayed: row.games_played,
+        gamesMastered: row.games_mastered,
+      })),
       total: count ?? 0,
       myRank,
       myScore,

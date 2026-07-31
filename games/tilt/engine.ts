@@ -27,13 +27,43 @@ export interface LevelConfig {
   colors: number;
   target: number;
   moves: number;
+  twoStarSpare: number;
+  threeStarSpare: number;
 }
 
-export const LEVELS: LevelConfig[] = [
-  { colors: 4, target: 500, moves: 20 },
-  { colors: 4, target: 700, moves: 17 },
-  { colors: 5, target: 800, moves: 14 },
-];
+export const TOTAL_LEVELS = 100;
+
+export const LEVELS: LevelConfig[] = Array.from({ length: TOTAL_LEVELS }, (_, i) => {
+  const n = i + 1;
+  if (n <= 25) {
+    const d = (n - 1) / 24;
+    return {
+      colors: 4,
+      target: Math.round((300 + d * 260) / 10) * 10,
+      moves: Math.round(22 - d * 4),
+      twoStarSpare: 2,
+      threeStarSpare: 5,
+    };
+  }
+  if (n <= 70) {
+    const d = (n - 26) / 44;
+    return {
+      colors: 5,
+      target: Math.round((500 + d * 300) / 10) * 10,
+      moves: Math.round(24 - d * 5),
+      twoStarSpare: 2,
+      threeStarSpare: 4,
+    };
+  }
+  const d = (n - 71) / 29;
+  return {
+    colors: 6,
+    target: Math.round((600 + d * 200) / 10) * 10,
+    moves: Math.round(27 - d * 5),
+    twoStarSpare: 1,
+    threeStarSpare: 3,
+  };
+});
 
 export interface TiltState {
   grid: Grid;
@@ -44,11 +74,11 @@ export interface TiltState {
 
 const EMPTY_START = 16; // a full board can't slide - always start with breathing room
 
-export function newLevel(dayKey: string, levelIdx: number): TiltState {
-  return newBoard(`tilt:${dayKey}:L${levelIdx}`, LEVELS[levelIdx].colors);
+export function newLevel(levelIdx: number): TiltState {
+  return newBoard(`tilt:progress:v1:L${levelIdx + 1}`, LEVELS[levelIdx].colors);
 }
 
-// endless mode & daily levels share one board factory
+// Shared deterministic board factory.
 export function newBoard(seedStr: string, colors: number): TiltState {
   const cfg = { colors };
   const rng = mulberry32(hashSeed(seedStr));

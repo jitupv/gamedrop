@@ -1,19 +1,6 @@
-"use client";
+import { notFound } from "next/navigation";
 
-import ChallengeBanner from "@/components/ChallengeBanner";
-import GameHeader from "@/components/GameHeader";
-import OrbitGame from "@/games/orbit/OrbitGame";
-
+// ORBIT is temporarily disabled; its game and engine files remain untouched.
 export default function OrbitPage() {
-  return (
-    <div className="game-frame">
-      <GameHeader gameId="orbit" />
-      <main className="flex-1 min-h-0 mx-auto w-full max-w-5xl px-2 sm:px-4 flex flex-col">
-        <ChallengeBanner render={(v) => `A friend dares you: finish today's ORBIT in under ${v} launches 🪐`} />
-        <div className="flex-1 min-h-0">
-          <OrbitGame />
-        </div>
-      </main>
-    </div>
-  );
+  notFound();
 }
