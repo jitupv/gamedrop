@@ -484,6 +484,7 @@ export default function SonarGame() {
       {phase === "levelDone" && (
         <Celebration
           title={`Level ${levelIdx + 1} escaped!`}
+          share={{ game: "sonar", level: levelIdx + 1 }}
           stars={lastStars}
           score={{ label: "pings used", value: lastPings }}
           badges={[

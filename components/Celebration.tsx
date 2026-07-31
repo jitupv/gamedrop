@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faStar, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { isMuted } from "@/lib/sdk/sound";
+import { shareLevel } from "@/lib/sdk/levelShare";
 import Countdown from "./Countdown";
 import PuzzleRating from "./PuzzleRating";
 import { SITE_EMAIL } from "@/lib/site";
@@ -24,6 +25,7 @@ export default function Celebration({
   primary,
   secondary,
   pill,
+  share,
   footnote,
   countdown,
   feedback,
@@ -37,6 +39,9 @@ export default function Celebration({
   primary: Action;
   secondary?: Action;
   pill?: Action; // what the floating continue-pill does after ✕ (defaults to primary)
+  // present on level clears - the panel owns the share button and its own
+  // "Shared ✓" state, so no game has to carry share wiring of its own
+  share?: { game: string; level: number };
   footnote?: string;
   countdown?: boolean; // show the live "next challenge at midnight" ticker
   feedback?: string; // game id - shows a one-tap "how was today's puzzle?" emoji row
@@ -44,6 +49,8 @@ export default function Celebration({
 }) {
   const [display, setDisplay] = useState(0);
   const [hidden, setHidden] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scoreValue = score?.value ?? 0;
 
@@ -136,6 +143,16 @@ export default function Celebration({
   const fmt = (v: number) =>
     score?.decimals ? v.toFixed(score.decimals) : Math.round(v).toLocaleString();
 
+  const doShare = async () => {
+    if (!share || sharing) return;
+    setSharing(true);
+    const outcome = await shareLevel(share.game, share.level);
+    setSharing(false);
+    if (outcome === "failed") return;
+    setShared(true);
+    window.setTimeout(() => setShared(false), 2000);
+  };
+
   // dismissed: reveal the board, keep a floating continue pill so nobody gets stuck
   if (hidden) {
     const pillAction = pill ?? primary;
@@ -187,16 +204,45 @@ export default function Celebration({
             ))}
           </div>
         )}
-        <div className="mt-5 flex gap-3 justify-center flex-wrap">
-          <button onClick={primary.onClick} className="btn-ink px-6 py-2.5">
-            {primary.label}
-          </button>
-          {secondary && (
-            <button onClick={secondary.onClick} className="btn-line px-5 py-2.5">
-              {secondary.label}
+        {share ? (
+          // On a level clear the share is the point, so it takes the solid
+          // button and "Level N →" steps down to an outline beside it. Replay
+          // is the rarest of the three, so it drops to a text link underneath
+          // instead of competing as a third button.
+          <>
+            <div className="mt-5 flex gap-2.5 justify-center items-center flex-wrap">
+              <button
+                onClick={doShare}
+                disabled={sharing}
+                className="btn-ink px-6 py-2.5 disabled:opacity-60"
+              >
+                {shared ? "Shared ✓" : "Challenge a friend"}
+              </button>
+              <button onClick={primary.onClick} className="btn-line px-5 py-2.5">
+                {primary.label}
+              </button>
+            </div>
+            {secondary && (
+              <button
+                onClick={secondary.onClick}
+                className="mt-3 text-xs tx-muted underline underline-offset-4 hover:tx-ink"
+              >
+                {secondary.label}
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="mt-5 flex gap-3 justify-center flex-wrap">
+            <button onClick={primary.onClick} className="btn-ink px-6 py-2.5">
+              {primary.label}
             </button>
-          )}
-        </div>
+            {secondary && (
+              <button onClick={secondary.onClick} className="btn-line px-5 py-2.5">
+                {secondary.label}
+              </button>
+            )}
+          </div>
+        )}
         {feedback && <PuzzleRating game={feedback} />}
         {footnote && <p className="text-xs tx-soft mt-4">{footnote}</p>}
         {finalWeek && (

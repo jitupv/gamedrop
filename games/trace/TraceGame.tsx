@@ -403,6 +403,7 @@ export default function TraceGame() {
       {phase === "levelDone" && (
         <Celebration
           title={`Level ${levelIdx + 1} traced!`}
+          share={{ game: "trace", level: levelIdx + 1 }}
           stars={lastStars}
           score={{ label: "accuracy", value: lastAccuracy, decimals: 1, suffix: "%" }}
           badges={[`${completed} completed this week`, peeked ? "Peek used: -8%" : "No peek"]}

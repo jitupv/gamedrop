@@ -749,6 +749,7 @@ export default function TiltGame() {
       {phase === "levelClear" && (
         <Celebration
           title={`Level ${levelIdx + 1} complete!`}
+          share={{ game: "tilt", level: levelIdx + 1 }}
           stars={lastStars}
           score={{ label: "points", value: score }}
           badges={[

@@ -455,6 +455,7 @@ export default function PrismGame() {
       {phase === "levelClear" && (
         <Celebration
           title={`Level ${levelIdx + 1} complete!`}
+          share={{ game: "prism", level: levelIdx + 1 }}
           stars={lastStars}
           score={{ label: "mirrors used", value: mirrorsUsed }}
           badges={[`${completed} completed this week`]}

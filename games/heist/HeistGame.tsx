@@ -557,6 +557,7 @@ export default function HeistGame() {
       {phase === "levelDone" && (
         <Celebration
           title={`Level ${levelIdx + 1} complete!`}
+          share={{ game: "heist", level: levelIdx + 1 }}
           stars={lastStars}
           score={{ label: "gems secured", value: lastGems }}
           badges={[

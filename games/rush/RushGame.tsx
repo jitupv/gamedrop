@@ -32,6 +32,7 @@ import {
 } from "./engine";
 import GuideLink from "@/components/GuideLink";
 import { reportLevelProgress } from "@/lib/sdk/leaderboard";
+import { shareLevel } from "@/lib/sdk/levelShare";
 import { blip, chirp } from "@/lib/sdk/sound";
 import { applyView, inScreenSpace } from "@/lib/sdk/viewport";
 import PuzzleRating from "@/components/PuzzleRating";
@@ -75,6 +76,7 @@ export default function RushGame() {
   const [phase, setPhase] = useState<Phase>("ready");
   const [showHelp, setShowHelp] = useState(false);
   const [crashHidden, setCrashHidden] = useState(false);
+  const [shared, setShared] = useState(false);
   const [showFinale, setShowFinale] = useState(false);
 
   const carsRef = useRef<Car[]>([]);
@@ -710,9 +712,24 @@ export default function RushGame() {
             <p className="text-xs tx-soft mb-4">
               Level {progress.level} · {progress.carsInLevel}/{CARS_PER_LEVEL} cars · best run {best}
             </p>
-            <button onClick={startRun} className="btn-ink px-6 py-2.5">
-              Again
-            </button>
+            {/* RUSH has no per-level panel - this crash box is where a run ends,
+                so the share lives here, with the retry stepped down beside it */}
+            <div className="flex gap-2.5 justify-center items-center flex-wrap">
+              <button
+                onClick={async () => {
+                  const outcome = await shareLevel("rush", progress.level);
+                  if (outcome === "failed") return;
+                  setShared(true);
+                  window.setTimeout(() => setShared(false), 2000);
+                }}
+                className="btn-ink px-6 py-2.5"
+              >
+                {shared ? "Shared ✓" : "Challenge a friend"}
+              </button>
+              <button onClick={startRun} className="btn-line px-5 py-2.5">
+                Again
+              </button>
+            </div>
             <PuzzleRating game="rush" quiet />
             <p className="text-xs tx-soft mt-4">Weekly completed-level progress is saved automatically.</p>
           </div>
