@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   Cell,
+  MIRROR_ALLOWANCE,
   MirrorType,
   PrismLevel,
   TOTAL_LEVELS,
@@ -109,18 +110,17 @@ export default function PrismGame() {
   const syncMirrorState = () => {
     const level = levelRef.current;
     if (!level) return;
-    const trace = traceBeam(level, mirrorsRef.current);
-    traceRef.current = trace;
     const used = mirrorsRef.current.size;
     setMirrorsUsed(used);
+    const trace = traceBeam(level, mirrorsRef.current);
+    traceRef.current = trace;
     setTargetsHit(trace.hitTargets.size);
     if (isSolved(level, trace)) finishLevel(used);
   };
 
   const resetMirrors = () => {
     if (phaseRef.current !== "play") return;
-    mirrorsRef.current = new Map();
-    syncMirrorState();
+    loadLevel(levelIdxRef.current);
     blip(260, 0.05, "sine", 0.035);
   };
 
@@ -135,7 +135,7 @@ export default function PrismGame() {
     setCompleted(saved);
     loadLevel(Math.min(saved, TOTAL_LEVELS - 1));
 
-    if (!window.localStorage.getItem("gd:prism:help")) setShowHelp(true);
+    if (!window.localStorage.getItem("gd:prism:help:v4")) setShowHelp(true);
 
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -247,6 +247,13 @@ export default function PrismGame() {
         ctx.strokeStyle = hit ? ACCENT : "rgba(238,240,245,0.32)";
         ctx.lineWidth = hit ? 3 : 2;
         ctx.stroke();
+        if (level.orderedTargets) {
+          ctx.fillStyle = hit ? "#ffffff" : "rgba(238,240,245,0.72)";
+          ctx.font = `700 ${Math.max(11, Math.floor(cell * 0.24))}px ui-sans-serif, system-ui`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(String(index + 1), x, y + 0.5);
+        }
       });
 
       {
@@ -278,6 +285,27 @@ export default function PrismGame() {
         ctx.arc(x, y, cell * 0.17, 0, Math.PI * 2);
         ctx.fillStyle = ACCENT;
         ctx.fill();
+      }
+
+      for (const mirror of level.fixedMirrors) {
+        const x = ox + (mirror.c + 0.5) * cell;
+        const y = oy + (mirror.r + 0.5) * cell;
+        const size = cell * 0.3;
+        ctx.strokeStyle = "#f4c95d";
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        if (mirror.type === "/") {
+          ctx.moveTo(x - size, y + size);
+          ctx.lineTo(x + size, y - size);
+        } else {
+          ctx.moveTo(x - size, y - size);
+          ctx.lineTo(x + size, y + size);
+        }
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(244,201,93,0.55)";
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x - cell * 0.36, y - cell * 0.36, cell * 0.72, cell * 0.72);
       }
 
       for (const [key, type] of mirrorsRef.current) {
@@ -328,8 +356,17 @@ export default function PrismGame() {
   }, []);
 
   const cfg = levelCfg(levelIdx);
-  const mirrorLimit = levelRef.current?.budget ?? cfg.routeMirrors + 2;
+  const fixedCount = levelRef.current?.fixedMirrors.length ?? cfg.fixedMirrors;
+  const minimumMirrors = levelRef.current?.par ?? cfg.routeMirrors - fixedCount;
+  const mirrorLimit = levelRef.current?.budget ?? minimumMirrors + MIRROR_ALLOWANCE;
   const maxUnlockedIndex = Math.min(completed, TOTAL_LEVELS - 1);
+  const ruleSummary = [
+    fixedCount > 0 ? `${fixedCount} fixed mirror${fixedCount === 1 ? "" : "s"}` : "",
+    (levelRef.current?.noCrossing ?? cfg.noCrossing) ? "no crossing" : "",
+    (levelRef.current?.orderedTargets ?? cfg.orderedTargets) ? "targets in order" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="relative w-full h-full flex flex-col">
@@ -355,8 +392,8 @@ export default function PrismGame() {
           </span>
         </div>
         <div className="stat">
-          <span className="lab">Week</span>
-          <span className="val">{weekLabel()}</span>
+          <span className="lab">3 stars</span>
+          <span className="val">≤{minimumMirrors}</span>
         </div>
       </div>
 
@@ -393,8 +430,12 @@ export default function PrismGame() {
       </div>
 
       <p className="hint">
-        tap a cell to place a mirror · bend the beam through every target ·{" "}
-        <b>{mirrorLimit} mirrors max</b> ·{" "}
+        beam stays live · <b>{mirrorLimit} mirrors max</b> ·{" "}
+        <span className="hidden sm:inline">
+          3★ ≤{minimumMirrors} · 2★ {minimumMirrors + 1} · 1★ {minimumMirrors + 2}–{mirrorLimit} ·{" "}
+        </span>
+        {ruleSummary && <><b>{ruleSummary}</b> · </>}
+        <span className="hidden sm:inline">{weekLabel()} · </span>
         <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
@@ -407,7 +448,7 @@ export default function PrismGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:prism:help", "1");
+                  window.localStorage.setItem("gd:prism:help:v4", "1");
                 } catch {}
               }}
             >
@@ -427,11 +468,17 @@ export default function PrismGame() {
                 The beam must pass through every ring before reaching the diamond receiver.
               </li>
               <li>
-                <span className="tx-ink font-semibold">3. Respect the mirror limit.</span>{" "}
-                Using the minimum number of mirrors earns three stars.
+                <span className="tx-ink font-semibold">3. Stars reward efficiency.</span>{" "}
+                Every puzzle&apos;s minimum is verified by the solver. The minimum earns 3 stars,
+                one extra mirror earns 2, and two or three extra mirrors earn 1.
               </li>
               <li>
-                <span className="tx-ink font-semibold">4. Keep climbing.</span>{" "}
+                <span className="tx-ink font-semibold">4. New constraints arrive gradually.</span>{" "}
+                From Level 26 the beam cannot cross its own path. Fixed gold mirrors appear from
+                Level 51, and numbered targets must be hit in order from Level 76.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">5. Keep climbing.</span>{" "}
                 Every Monday brings a globally shared remix. Weekly progress starts
                 at Level 1 while your career best remains saved.
               </li>
@@ -440,7 +487,7 @@ export default function PrismGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:prism:help", "1");
+                  window.localStorage.setItem("gd:prism:help:v4", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
@@ -458,7 +505,7 @@ export default function PrismGame() {
           share={{ game: "prism", level: levelIdx + 1 }}
           stars={lastStars}
           score={{ label: "mirrors used", value: mirrorsUsed }}
-          badges={[`${completed} completed this week`]}
+          badges={[`${completed} completed this week`, `3★ minimum: ${minimumMirrors}`]}
           primary={{
             label: `Level ${levelIdx + 2} →`,
             onClick: () => loadLevel(levelIdx + 1),

@@ -791,12 +791,23 @@ function Overlay({
   title,
   sub,
   children,
+  delayMs = 900,
 }: {
   emoji: string;
   title: string;
   sub: string;
   children: React.ReactNode;
+  delayMs?: number;
 }) {
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setRevealed(true), Math.max(0, delayMs));
+    return () => window.clearTimeout(timer);
+  }, [delayMs]);
+
+  if (!revealed) return null;
+
   return (
     <div className="scrim fixed inset-0 flex items-center justify-center z-50 p-4">
       <div className="panel text-center max-w-sm">

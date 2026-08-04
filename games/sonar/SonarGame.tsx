@@ -5,6 +5,7 @@ import { faXmark } from "@fortawesome/free-solid-svg-icons";
 
 import { useEffect, useRef, useState } from "react";
 import { SonarLevel, TOTAL_LEVELS, genProgressLevel, starsForPings } from "./engine";
+import { flickDirection, type PointerSample } from "./input";
 import Celebration from "@/components/Celebration";
 import GuideLink from "@/components/GuideLink";
 import { reportLevelProgress } from "@/lib/sdk/leaderboard";
@@ -20,6 +21,7 @@ import {
 const CW = 900;
 const CH = 600;
 const SPEED_CELLS = 5.2; // cells per second
+const FLICK_SPEED_CELLS = 8.5;
 
 type Phase = "playing" | "levelDone" | "allDone";
 
@@ -62,6 +64,8 @@ export default function SonarGame() {
   const completedRef = useRef(0);
   const keysRef = useRef<Set<string>>(new Set());
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerSamplesRef = useRef<PointerSample[]>([]);
+  const momentumRef = useRef<{ x: number; y: number } | null>(null);
   const seasonRef = useRef(weeklySeed("sonar"));
 
   const setPhaseBoth = (p: Phase) => {
@@ -85,6 +89,9 @@ export default function SonarGame() {
     bumpsRef.current = [];
     visitedRef.current = new Set();
     pingCountRef.current = 0;
+    pointerRef.current = null;
+    pointerSamplesRef.current = [];
+    momentumRef.current = null;
     levelStartRef.current = performance.now();
     setLevel(lv);
     setLevelIdx(idx);
@@ -118,7 +125,7 @@ export default function SonarGame() {
     completedRef.current = saved;
     setCompleted(saved);
     startLevel(Math.min(saved, TOTAL_LEVELS - 1));
-    if (!window.localStorage.getItem("gd:sonar:help:v2")) setShowHelp(true);
+    if (!window.localStorage.getItem("gd:sonar:help:v3")) setShowHelp(true);
 
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -132,15 +139,41 @@ export default function SonarGame() {
       if (!v) return { x: -9999, y: -9999 };
       return pointToGame(v, canvas, e.clientX, e.clientY, CW);
     };
+    const recordPointer = (point: { x: number; y: number }, t: number) => {
+      pointerSamplesRef.current.push({ ...point, t });
+      pointerSamplesRef.current = pointerSamplesRef.current.filter((sample) => sample.t >= t - 140);
+    };
     const onDown = (e: PointerEvent) => {
       canvas.setPointerCapture(e.pointerId);
-      pointerRef.current = toGame(e);
+      const point = toGame(e);
+      pointerRef.current = point;
+      pointerSamplesRef.current = [];
+      recordPointer(point, performance.now());
+      momentumRef.current = null;
     };
     const onMove = (e: PointerEvent) => {
-      if (pointerRef.current) pointerRef.current = toGame(e);
+      if (!pointerRef.current) return;
+      const point = toGame(e);
+      pointerRef.current = point;
+      recordPointer(point, performance.now());
     };
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
+      if (!pointerRef.current) return;
+      const releasedAt = performance.now();
+      const point = toGame(e);
+      recordPointer(point, releasedAt);
+      const lv = levelRef.current;
+      const direction = lv
+        ? flickDirection(pointerSamplesRef.current, releasedAt, geom(lv).cell)
+        : null;
+      momentumRef.current = direction;
       pointerRef.current = null;
+      pointerSamplesRef.current = [];
+    };
+    const onCancel = () => {
+      pointerRef.current = null;
+      pointerSamplesRef.current = [];
+      momentumRef.current = null;
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === " ") {
@@ -148,6 +181,7 @@ export default function SonarGame() {
         doPing();
         return;
       }
+      momentumRef.current = null;
       keysRef.current.add(e.key);
     };
     const onKeyUp = (e: KeyboardEvent) => keysRef.current.delete(e.key);
@@ -155,6 +189,7 @@ export default function SonarGame() {
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
+    canvas.addEventListener("pointercancel", onCancel);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
 
@@ -197,6 +232,7 @@ export default function SonarGame() {
       if (phaseRef.current === "playing") {
         let vx = 0;
         let vy = 0;
+        let coasting = false;
         const k = keysRef.current;
         if (k.has("ArrowLeft") || k.has("a")) vx -= 1;
         if (k.has("ArrowRight") || k.has("d")) vx += 1;
@@ -211,21 +247,46 @@ export default function SonarGame() {
             vx = dx / d;
             vy = dy / d;
           }
+        } else if (vx === 0 && vy === 0 && momentumRef.current) {
+          vx = momentumRef.current.x;
+          vy = momentumRef.current.y;
+          coasting = true;
         }
         const vlen = Math.hypot(vx, vy);
         if (vlen > 0) {
           vx /= vlen;
           vy /= vlen;
-          const step = SPEED_CELLS * cell * dt;
-          // axis-separated so we slide along walls
-          const nx = p.x + vx * step;
-          const hitX = collide(lv, cell, ox, oy, nx, p.y);
-          if (!hitX) p.x = nx;
-          else bumpsRef.current.push({ c: hitX.c, r: hitX.r, t: now });
-          const ny = p.y + vy * step;
-          const hitY = collide(lv, cell, ox, oy, p.x, ny);
-          if (!hitY) p.y = ny;
-          else bumpsRef.current.push({ c: hitY.c, r: hitY.r, t: now });
+          if (coasting) {
+            // A flick is a committed move: keep its direction and stop at the
+            // first wall instead of sliding around it. Small sweep steps avoid
+            // skipping thin corners on a slow frame.
+            const distance = FLICK_SPEED_CELLS * cell * dt;
+            const sweeps = Math.max(1, Math.ceil(distance / (cell * 0.1)));
+            const step = distance / sweeps;
+            for (let i = 0; i < sweeps; i++) {
+              const nx = p.x + vx * step;
+              const ny = p.y + vy * step;
+              const hit = collide(lv, cell, ox, oy, nx, ny);
+              if (hit) {
+                bumpsRef.current.push({ c: hit.c, r: hit.r, t: now });
+                momentumRef.current = null;
+                break;
+              }
+              p.x = nx;
+              p.y = ny;
+            }
+          } else {
+            const step = SPEED_CELLS * cell * dt;
+            // Held navigation stays controllable and slides along walls.
+            const nx = p.x + vx * step;
+            const hitX = collide(lv, cell, ox, oy, nx, p.y);
+            if (!hitX) p.x = nx;
+            else bumpsRef.current.push({ c: hitX.c, r: hitX.r, t: now });
+            const ny = p.y + vy * step;
+            const hitY = collide(lv, cell, ox, oy, p.x, ny);
+            if (!hitY) p.y = ny;
+            else bumpsRef.current.push({ c: hitY.c, r: hitY.r, t: now });
+          }
         }
         visitedRef.current.add(`${Math.floor((p.x - ox) / cell)},${Math.floor((p.y - oy) / cell)}`);
 
@@ -346,6 +407,7 @@ export default function SonarGame() {
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
+      canvas.removeEventListener("pointercancel", onCancel);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
@@ -417,7 +479,8 @@ export default function SonarGame() {
       </div>
 
       <p className="hint">
-        hold &amp; drag to move<span className="hidden sm:inline"> (or WASD/arrows)</span> · ping
+        hold &amp; drag to steer · flick fast to coast until a wall
+        <span className="hidden sm:inline"> · WASD/arrows also move</span> · ping
         <span className="hidden sm:inline"> (space)</span> to reveal walls · 3 stars at{" "}
         {level?.parPings ?? 0} pings or fewer ·{" "}
         <button onClick={() => setShowHelp(true)}>how to play?</button>
@@ -432,7 +495,7 @@ export default function SonarGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:sonar:help:v2", "1");
+                  window.localStorage.setItem("gd:sonar:help:v3", "1");
                 } catch {}
               }}
             >
@@ -445,22 +508,28 @@ export default function SonarGame() {
                 Only the golden exit glows in the distance.
               </li>
               <li>
-                <span className="tx-ink font-semibold">2. Hold &amp; drag to move</span> toward
-                your finger (or use WASD / arrow keys).
+                <span className="tx-ink font-semibold">2. Hold &amp; drag to steer</span> toward
+                your finger (or use WASD / arrow keys). Release normally and the dot stays where
+                you left it.
               </li>
               <li>
-                <span className="tx-ink font-semibold">3. Ping to see.</span> The wave reveals
+                <span className="tx-ink font-semibold">3. Flick for a committed move.</span>{" "}
+                Swipe quickly and release to send the dot coasting in that direction until it
+                hits a wall.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">4. Ping to see.</span> The wave reveals
                 nearby walls, then fades. Later levels reveal less area for less time and leave
                 fainter breadcrumbs.
               </li>
               <li>
-                <span className="tx-ink font-semibold">4. Pings are limited.</span> On this level,
+                <span className="tx-ink font-semibold">5. Pings are limited.</span> On this level,
                 use {level?.parPings ?? 0} or fewer for 3 stars, {level?.twoStarPings ?? 0} or fewer
                 for 2 stars, or up to {pingLimit} for 1 star. After the last ping you can still move
                 and escape.
               </li>
               <li>
-                <span className="tx-ink font-semibold">5. Keep climbing.</span> Routes
+                <span className="tx-ink font-semibold">6. Keep climbing.</span> Routes
                 grow from 10 to 136 steps. Every Monday brings a globally shared maze remix;
                 weekly depth is ranked and your career best remains saved.
               </li>
@@ -469,7 +538,7 @@ export default function SonarGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:sonar:help:v2", "1");
+                  window.localStorage.setItem("gd:sonar:help:v3", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"

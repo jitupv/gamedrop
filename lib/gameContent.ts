@@ -127,7 +127,7 @@ export const GAME_CONTENT: Record<string, GameContent> = {
       "Learn how to play SONAR's weekly maze campaign, how ping limits and stars work, and how to escape with fewer pings.",
     what: "SONAR is a weekly maze memory game. You are a dot in a pitch-black maze. Tap to send out a ping that lights up nearby walls for a moment, then memorize the layout and feel your way to the glowing exit. Routes grow longer, while later pings reveal less area for less time and breadcrumbs become fainter.",
     how: [
-      "Hold and drag to move your dot through the darkness.",
+      "Hold and drag to steer, or flick quickly and release to coast until you hit a wall.",
       "Tap the ping button to briefly reveal the walls around you.",
       "Memorize the layout quickly - the light fades fast.",
       "Head toward the glowing gold exit.",

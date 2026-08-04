@@ -8,8 +8,9 @@ export interface Cell {
 }
 
 export interface Guard {
-  path: Cell[]; // patrol loop, walked forward forever
+  path: Cell[]; // patrol loop, walked forever in the configured direction
   offset: number; // starting index into the loop
+  direction: 1 | -1;
 }
 
 export interface HeistLevel {
@@ -21,6 +22,8 @@ export interface HeistLevel {
   exit: Cell;
   guards: Guard[];
   solutionSteps: number;
+  stepLimit: number | null;
+  orderedGems: boolean;
 }
 
 export interface HeistCfg {
@@ -30,6 +33,9 @@ export interface HeistCfg {
   gems: number;
   wallRatio: number;
   minSteps: number;
+  stepSlack: number | null;
+  reverseGuardRatio: number;
+  orderedGems: boolean;
 }
 
 export const TOTAL_LEVELS = 100;
@@ -44,22 +50,74 @@ export function levelCfg(levelIdx: number): HeistCfg {
       gems: 3 + Math.floor(n / 4),
       wallRatio: 0.07 + n * 0.006,
       minSteps: 10 + n * 2,
+      stepSlack: null,
+      reverseGuardRatio: 0,
+      orderedGems: false,
     };
   }
 
-  const advanced = n - 9;
+  if (n < 25) {
+    const d = n - 10;
+    return {
+      cols: 10 + Math.floor(d / 8),
+      rows: 8 + Math.floor(d / 10),
+      guards: 3 + Math.floor(d / 7),
+      gems: 5 + Math.floor(d / 8),
+      wallRatio: 0.13 + d * 0.002,
+      minSteps: 28 + Math.floor(d * 0.8),
+      stepSlack: 10 - Math.floor(d / 5),
+      reverseGuardRatio: 0,
+      orderedGems: false,
+    };
+  }
+
+  if (n < 50) {
+    const d = n - 25;
+    return {
+      cols: 11 + Math.floor(d / 12),
+      rows: 9 + Math.floor(d / 15),
+      guards: 5 + Math.floor(d / 12),
+      gems: 6 + Math.floor(d / 12),
+      wallRatio: 0.16 + d * 0.002,
+      minSteps: 42 + Math.floor(d * 0.7),
+      stepSlack: 7 - Math.floor(d / 8),
+      reverseGuardRatio: 0,
+      orderedGems: false,
+    };
+  }
+
+  if (n < 75) {
+    const d = n - 50;
+    return {
+      cols: 13 + Math.floor(d / 16),
+      rows: 10 + Math.floor(d / 18),
+      guards: 7 + Math.floor(d / 16),
+      gems: 8 + Math.floor(d / 16),
+      wallRatio: 0.21 + d * 0.0018,
+      minSteps: 58 + Math.floor(d * 0.75),
+      stepSlack: 4 - Math.floor(d / 16),
+      reverseGuardRatio: 0.25 + d * 0.01,
+      orderedGems: false,
+    };
+  }
+
+  const d = n - 75;
   return {
-    cols: Math.min(13, 10 + Math.floor(advanced / 28)),
-    rows: Math.min(10, 8 + Math.floor(advanced / 40)),
-    guards: Math.min(6, 3 + Math.floor(advanced / 25)),
-    gems: Math.min(6, 5 + Math.floor(advanced / 45)),
-    wallRatio: Math.min(0.22, 0.13 + advanced * 0.001),
-    minSteps: Math.min(58, 28 + Math.floor(advanced / 3)),
+    cols: Math.min(15, 14 + Math.floor(d / 12)),
+    rows: Math.min(12, 11 + Math.floor(d / 16)),
+    guards: 8,
+    gems: Math.min(10, 9 + Math.floor(d / 12)),
+    wallRatio: 0.255 + d * 0.0011,
+    minSteps: 76 + Math.floor(d * 0.75),
+    stepSlack: 3,
+    reverseGuardRatio: Math.min(0.7, 0.5 + d * 0.01),
+    orderedGems: true,
   };
 }
 
 export function guardAt(g: Guard, t: number): Cell {
-  return g.path[(g.offset + t) % g.path.length];
+  const index = (g.offset + g.direction * t) % g.path.length;
+  return g.path[index < 0 ? index + g.path.length : index];
 }
 
 // thief moved old→new on tick t-1→t; caught if sharing a cell or swapping with any guard
@@ -84,7 +142,23 @@ function rectLoop(x0: number, y0: number, w: number, h: number): Cell[] {
 
 export function genProgressLevel(levelIdx: number, seasonKey = "all"): HeistLevel {
   const safeIndex = Math.max(0, Math.min(TOTAL_LEVELS - 1, levelIdx));
-  return genLevelFrom(`heist:weekly:v1:${seasonKey}:L${safeIndex + 1}`, levelCfg(safeIndex));
+  const cfg = levelCfg(safeIndex);
+  let fallback: HeistLevel | null = null;
+  for (let variant = 0; variant < 16; variant++) {
+    const level = genLevelFrom(
+      `heist:weekly:v2:${seasonKey}:L${safeIndex + 1}:v${variant}`,
+      cfg
+    );
+    fallback = level;
+    if (
+      level.solutionSteps >= cfg.minSteps &&
+      level.guards.length === cfg.guards &&
+      level.gems.length === cfg.gems
+    ) {
+      return level;
+    }
+  }
+  return fallback!;
 }
 
 function buildReferenceRoute(
@@ -180,7 +254,9 @@ export function genLevelFrom(seedBase: string, cfg: HeistCfg): HeistLevel {
       if (path.some((p) => (p.c === start.c && p.r === start.r) || (p.c === exit.c && p.r === exit.r))) continue;
       if (path.some((p) => gems.some((g) => g.c === p.c && g.r === p.r))) continue;
       if (!path.some((p) => solution.some((s) => s.c === p.c && s.r === p.r))) continue;
-      const candidate: Guard = { path, offset: Math.floor(rng() * path.length) };
+      const reverseCount = Math.round(cfg.guards * cfg.reverseGuardRatio);
+      const direction: 1 | -1 = guards.length >= cfg.guards - reverseCount ? -1 : 1;
+      const candidate: Guard = { path, offset: Math.floor(rng() * path.length), direction };
       let safe = true;
       for (let t = 1; t < solution.length; t++) {
         if (caughtAt([candidate], solution[t - 1], solution[t], t)) {
@@ -223,6 +299,8 @@ export function genLevelFrom(seedBase: string, cfg: HeistCfg): HeistLevel {
       exit,
       guards,
       solutionSteps: solution.length - 1,
+      stepLimit: cfg.stepSlack === null ? null : solution.length - 1 + cfg.stepSlack,
+      orderedGems: cfg.orderedGems,
     };
   }
 
@@ -237,5 +315,7 @@ export function genLevelFrom(seedBase: string, cfg: HeistCfg): HeistLevel {
     exit: { c: cols - 1, r: Math.floor(rows / 2) },
     guards: [],
     solutionSteps: 0,
+    stepLimit: null,
+    orderedGems: cfg.orderedGems,
   };
 }
