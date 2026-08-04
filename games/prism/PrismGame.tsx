@@ -361,6 +361,7 @@ export default function PrismGame() {
   const mirrorLimit = levelRef.current?.budget ?? minimumMirrors + MIRROR_ALLOWANCE;
   const maxUnlockedIndex = Math.min(completed, TOTAL_LEVELS - 1);
   const ruleSummary = [
+    `${levelRef.current?.verifiedRoutes ?? 3}+ solution paths`,
     fixedCount > 0 ? `${fixedCount} fixed mirror${fixedCount === 1 ? "" : "s"}` : "",
     (levelRef.current?.noCrossing ?? cfg.noCrossing) ? "no crossing" : "",
     (levelRef.current?.orderedTargets ?? cfg.orderedTargets) ? "targets in order" : "",
@@ -470,7 +471,8 @@ export default function PrismGame() {
               <li>
                 <span className="tx-ink font-semibold">3. Stars reward efficiency.</span>{" "}
                 Every puzzle&apos;s minimum is verified by the solver. The minimum earns 3 stars,
-                one extra mirror earns 2, and two or three extra mirrors earn 1.
+                one extra mirror earns 2, and two or three extra mirrors earn 1. Every level has
+                at least three complete beam paths, including longer detour solutions.
               </li>
               <li>
                 <span className="tx-ink font-semibold">4. New constraints arrive gradually.</span>{" "}

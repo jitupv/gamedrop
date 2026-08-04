@@ -187,14 +187,23 @@ export default function Celebration({
         </button>
         <div className="ribbon">{title}</div>
         {subtitle && <p className="tx-muted text-sm mt-3">{subtitle}</p>}
-        <div className="mt-4 flex justify-center gap-2">
+        <div
+          className="mt-4 flex justify-center gap-2"
+          role="img"
+          aria-label={`${stars} out of 3 stars earned`}
+        >
           {[0, 1, 2].map((i) => (
             <span
               key={i}
               className={`star-slot ${i < stars ? "star-earned" : ""}`}
               style={i < stars ? { animationDelay: `${0.15 + i * 0.22}s` } : undefined}
+              aria-hidden="true"
             >
-              <FontAwesomeIcon icon={faStar} width={40} height={40} />
+              {i < stars ? (
+                <FontAwesomeIcon icon={faStar} width={40} height={40} />
+              ) : (
+                <span className="star-empty">☆</span>
+              )}
             </span>
           ))}
         </div>

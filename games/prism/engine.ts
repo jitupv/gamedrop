@@ -5,10 +5,10 @@
 // a mirror can't share a cell with a target), and cosmetic walls are scattered
 // everywhere the path doesn't go. This guarantees a solution exists by
 // construction - no search needed, no risk of an unsolvable board - and stays
-// fast even as boards grow. The only search left is a cheap "reject if solvable
-// with 0-1 mirrors" quality check. The beam may never cross a cell it has
-// already visited - a clean, visible constraint (you can see your own trail)
-// that also keeps that quality check's search small.
+// fast even as boards grow. A bounded solver then proves both the minimum and
+// the presence of genuine alternative beam routes. The beam may never cross a
+// cell it has already visited - a clean, visible constraint (you can see your
+// own trail) that also keeps those verification searches small.
 import { hashSeed, mulberry32 } from "@/lib/sdk/rng";
 
 export interface Cell {
@@ -41,6 +41,8 @@ export interface PrismLevel {
   fixedMirrors: FixedMirror[];
   budget: number; // max mirrors that may be placed at once
   par: number; // solver-verified minimum movable mirrors for 3 stars
+  verifiedRoutes: number; // distinct solver-verified beam paths (at least 3)
+  solutionMirrorCounts: number[]; // verified mirror counts represented by those paths
   noCrossing: boolean;
   orderedTargets: boolean;
 }
@@ -119,9 +121,10 @@ function targetIndexAt(targets: Cell[], c: number, r: number): number {
 
 function chooseFixedMirrors(
   solution: Map<string, MirrorType>,
-  requested: number
+  requested: number,
+  excluded = new Set<string>()
 ): FixedMirror[] {
-  const entries = [...solution.entries()];
+  const entries = [...solution.entries()].filter(([key]) => !excluded.has(key));
   const count = Math.min(requested, Math.max(0, entries.length - 2));
   const chosen: FixedMirror[] = [];
   const used = new Set<number>();
@@ -134,6 +137,108 @@ function chooseFixedMirrors(
     chosen.push({ c, r, type });
   }
   return chosen;
+}
+
+interface DetourVariant {
+  mirrors: Map<string, MirrorType>;
+  addedMirrorKeys: string[];
+  protectedKeys: string[];
+  replacedCorner: string;
+}
+
+function mirrorForTurn(
+  from: [number, number],
+  to: [number, number]
+): MirrorType | null {
+  const [sx, sy] = reflectSlash(from[0], from[1]);
+  if (sx === to[0] && sy === to[1]) return "/";
+  const [bx, by] = reflectBack(from[0], from[1]);
+  return bx === to[0] && by === to[1] ? "\\" : null;
+}
+
+// Replace one normal corner mirror with a three-mirror square detour. Each
+// detour rejoins the original beam one cell later, so it still crosses every
+// target in the same order while using two extra movable mirrors.
+function buildDetourVariants(
+  path: Cell[],
+  solution: Map<string, MirrorType>,
+  cols: number,
+  rows: number
+): DetourVariant[] {
+  const variants: DetourVariant[] = [];
+  const baseKeys = new Set(path.map((cell) => `${cell.c},${cell.r}`));
+  const signatures = new Set<string>();
+  const inBounds = (cell: Cell) =>
+    cell.c >= 0 && cell.r >= 0 && cell.c < cols && cell.r < rows;
+
+  const addVariant = (
+    corner: Cell,
+    external: Cell[],
+    placements: { cell: Cell; from: [number, number]; to: [number, number] }[]
+  ) => {
+    if (external.some((cell) => !inBounds(cell) || baseKeys.has(`${cell.c},${cell.r}`))) return;
+    if (
+      placements.some(
+        ({ cell }) =>
+          !inBounds(cell) ||
+          solution.has(`${cell.c},${cell.r}`) ||
+          (cell.c === path[0].c && cell.r === path[0].r) ||
+          (cell.c === path[path.length - 1].c && cell.r === path[path.length - 1].r)
+      )
+    ) return;
+
+    const mirrors = new Map(solution);
+    const replacedCorner = `${corner.c},${corner.r}`;
+    mirrors.delete(replacedCorner);
+    const addedMirrorKeys: string[] = [];
+    for (const placement of placements) {
+      const type = mirrorForTurn(placement.from, placement.to);
+      if (!type) return;
+      const key = `${placement.cell.c},${placement.cell.r}`;
+      mirrors.set(key, type);
+      addedMirrorKeys.push(key);
+    }
+    const signature = [...mirrors.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, type]) => `${key}:${type}`)
+      .join("|");
+    if (signatures.has(signature)) return;
+    signatures.add(signature);
+    variants.push({
+      mirrors,
+      addedMirrorKeys,
+      protectedKeys: external.map((cell) => `${cell.c},${cell.r}`),
+      replacedCorner,
+    });
+  };
+
+  for (let index = 1; index < path.length - 1; index++) {
+    const corner = path[index];
+    if (!solution.has(`${corner.c},${corner.r}`)) continue;
+    const previous = path[index - 1];
+    const next = path[index + 1];
+    const incoming: [number, number] = [corner.c - previous.c, corner.r - previous.r];
+    const outgoing: [number, number] = [next.c - corner.c, next.r - corner.r];
+    const before = previous;
+    const preA = { c: before.c - outgoing[0], r: before.r - outgoing[1] };
+    const preB = { c: corner.c - outgoing[0], r: corner.r - outgoing[1] };
+    const oppositeOutgoing: [number, number] = [-outgoing[0], -outgoing[1]];
+    addVariant(corner, [preA, preB], [
+      { cell: before, from: incoming, to: oppositeOutgoing },
+      { cell: preA, from: oppositeOutgoing, to: incoming },
+      { cell: preB, from: incoming, to: outgoing },
+    ]);
+
+    const postA = { c: corner.c + incoming[0], r: corner.r + incoming[1] };
+    const postB = { c: postA.c + outgoing[0], r: postA.r + outgoing[1] };
+    const oppositeIncoming: [number, number] = [-incoming[0], -incoming[1]];
+    addVariant(corner, [postA, postB], [
+      { cell: postA, from: incoming, to: outgoing },
+      { cell: postB, from: outgoing, to: oppositeIncoming },
+      { cell: next, from: oppositeIncoming, to: outgoing },
+    ]);
+  }
+  return variants;
 }
 
 export interface TraceResult {
@@ -207,12 +312,16 @@ export function isSolved(level: PrismLevel, trace: TraceResult): boolean {
 }
 
 type SolveCheck = "solved" | "unsolved" | "exhausted";
+type PrismBoard = Omit<
+  PrismLevel,
+  "budget" | "par" | "verifiedRoutes" | "solutionMirrorCounts"
+>;
 
 // Self-avoiding DFS used to prove the minimum movable-mirror count. Exhaustion
 // is distinct from "unsolved": a board is discarded if the search budget is
 // reached, so an uncertain result can never be presented as a verified par.
 function canSolveWithinMirrors(
-  level: Omit<PrismLevel, "budget" | "par">,
+  level: PrismBoard,
   maxMirrors: number,
   nodeBudget = 120000
 ): SolveCheck {
@@ -355,6 +464,14 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
 
     const receiver: Cell = { c, r };
     const emitter = { cell: { c: 0, r: emitterRow }, dir: 0 as Dir };
+    const detourVariants = buildDetourVariants(pathCells, mirrorsSolution, cols, rows);
+    if (detourVariants.length < 2) continue;
+    const chosenDetours = detourVariants.slice(0, 2);
+    const detourMirrorKeys = new Set(chosenDetours.flatMap((variant) => variant.addedMirrorKeys));
+    const protectedCells = new Set(visited);
+    chosenDetours.forEach((variant) =>
+      variant.protectedKeys.forEach((key) => protectedCells.add(key))
+    );
 
     // targets live on the solution path itself (guaranteeing the beam crosses
     // them when the intended mirrors are placed), never on a bend cell (a
@@ -364,9 +481,10 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
       .slice(1, -1)
       .filter(
         (p) =>
-          !(p.c === receiver.c && p.r === receiver.r) &&
-          !mirrorsSolution.has(`${p.c},${p.r}`) &&
-          p.segment >= 1
+           !(p.c === receiver.c && p.r === receiver.r) &&
+           !mirrorsSolution.has(`${p.c},${p.r}`) &&
+           !detourMirrorKeys.has(`${p.c},${p.r}`) &&
+           p.segment >= 1
       );
     if (interior.length < targetCount) continue;
     const seenTargets = new Set<string>();
@@ -388,12 +506,17 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     for (let tries = 0; wallsPlaced < wallCount && tries < wallCount * 10; tries++) {
       const wc = Math.floor(rng() * cols);
       const wr = Math.floor(rng() * rows);
-      if (visited.has(`${wc},${wr}`) || walls[wr][wc]) continue;
+      if (protectedCells.has(`${wc},${wr}`) || walls[wr][wc]) continue;
       walls[wr][wc] = true;
       wallsPlaced++;
     }
 
-    const fixedMirrors = chooseFixedMirrors(mirrorsSolution, requestedFixedMirrors);
+    const replacedCorners = new Set(chosenDetours.map((variant) => variant.replacedCorner));
+    const fixedMirrors = chooseFixedMirrors(
+      mirrorsSolution,
+      requestedFixedMirrors,
+      replacedCorners
+    );
     const variableMirrors = routeMirrors - fixedMirrors.length;
     const bare = {
       cols,
@@ -417,11 +540,29 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     const nearParCheck = canSolveWithinMirrors(bare, variableMirrors - 1);
     if (nearParCheck === "exhausted") continue;
     const par = nearParCheck === "solved" ? variableMirrors - 1 : variableMirrors;
-    return {
+    const candidate: PrismLevel = {
       ...bare,
       budget: par + MIRROR_ALLOWANCE,
       par,
+      verifiedRoutes: 0,
+      solutionMirrorCounts: [],
     };
+    const fixedKeys = new Set(fixedMirrors.map((mirror) => `${mirror.c},${mirror.r}`));
+    const playerSolutions = [mirrorsSolution, ...chosenDetours.map((variant) => variant.mirrors)]
+      .map((solution) => new Map([...solution].filter(([key]) => !fixedKeys.has(key))));
+    const solutionPaths = new Set<string>();
+    const solutionMirrorCounts = new Set<number>([par]);
+    for (const solution of playerSolutions) {
+      if (solution.size > candidate.budget) continue;
+      const trace = traceBeam(candidate, solution);
+      if (!isSolved(candidate, trace)) continue;
+      solutionPaths.add(trace.path.map((cell) => `${cell.c},${cell.r}`).join(">"));
+      solutionMirrorCounts.add(solution.size);
+    }
+    if (solutionPaths.size < 3) continue;
+    candidate.verifiedRoutes = solutionPaths.size;
+    candidate.solutionMirrorCounts = [...solutionMirrorCounts].sort((a, b) => a - b);
+    return candidate;
   }
 
   // Deterministic non-trivial fallback. A horizontal snake supplies the full
@@ -463,8 +604,20 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
   }
 
   const receiver: Cell = { c: fc, r: fr };
+  const fallbackDetours = buildDetourVariants(
+    fallbackPath,
+    fallbackMirrors,
+    cols,
+    rows
+  ).slice(0, 2);
+  const fallbackDetourMirrorKeys = new Set(
+    fallbackDetours.flatMap((variant) => variant.addedMirrorKeys)
+  );
   const eligibleTargets = fallbackPath.slice(1, -1).filter(
-    (cell) => cell.segment >= 1 && !fallbackMirrors.has(`${cell.c},${cell.r}`)
+    (cell) =>
+      cell.segment >= 1 &&
+      !fallbackMirrors.has(`${cell.c},${cell.r}`) &&
+      !fallbackDetourMirrorKeys.has(`${cell.c},${cell.r}`)
   );
   const fallbackTargets: Cell[] = [];
   for (let i = 0; i < targetCount; i++) {
@@ -475,17 +628,25 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     fallbackTargets.push({ c: eligibleTargets[index].c, r: eligibleTargets[index].r });
   }
 
-  // Seal every non-route cell so this rare fallback is a one-cell corridor.
-  // Every non-fixed bend is therefore mandatory, which proves its minimum by
-  // construction even if the bounded verifier exhausted all random variants.
-  const fallbackWalls: boolean[][] = Array.from({ length: rows }, (_, r) =>
-    Array.from({ length: cols }, (_, c) => !fallbackVisited.has(`${c},${r}`))
+  const fallbackReplacedCorners = new Set(
+    fallbackDetours.map((variant) => variant.replacedCorner)
   );
-
-  const fixedMirrors = chooseFixedMirrors(fallbackMirrors, requestedFixedMirrors);
+  const fixedMirrors = chooseFixedMirrors(
+    fallbackMirrors,
+    requestedFixedMirrors,
+    fallbackReplacedCorners
+  );
   const variableMirrors = routeMirrors - fixedMirrors.length;
-
-  return {
+  // The fallback is a branching corridor: the snake stays protected, and two
+  // square pockets provide real alternative paths around its corners.
+  const fallbackProtected = new Set(fallbackVisited);
+  fallbackDetours.forEach((variant) =>
+    variant.protectedKeys.forEach((key) => fallbackProtected.add(key))
+  );
+  const fallbackWalls: boolean[][] = Array.from({ length: rows }, (_, row) =>
+    Array.from({ length: cols }, (_, col) => !fallbackProtected.has(`${col},${row}`))
+  );
+  const fallbackBare = {
     cols,
     rows,
     walls: fallbackWalls,
@@ -493,23 +654,38 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     emitter,
     receiver,
     fixedMirrors,
-    budget: variableMirrors + MIRROR_ALLOWANCE,
-    par: variableMirrors,
     noCrossing,
     orderedTargets,
+  };
+  const fallbackCounts = new Set<number>([variableMirrors]);
+  const fallbackFixedKeys = new Set(fixedMirrors.map((mirror) => `${mirror.c},${mirror.r}`));
+  fallbackDetours.forEach((variant) => {
+    const movableCount = [...variant.mirrors.keys()].filter(
+      (key) => !fallbackFixedKeys.has(key)
+    ).length;
+    fallbackCounts.add(movableCount);
+  });
+  return {
+    ...fallbackBare,
+    budget: variableMirrors + MIRROR_ALLOWANCE,
+    par: variableMirrors,
+    verifiedRoutes: 1 + fallbackDetours.length,
+    solutionMirrorCounts: [...fallbackCounts].sort((a, b) => a - b),
   };
 }
 
 export function genProgressLevel(levelIdx: number, seasonKey = "all"): PrismLevel {
   const safeIndex = Math.max(0, Math.min(TOTAL_LEVELS - 1, levelIdx));
   const cfg = levelCfg(safeIndex);
-  let level = genLevelFrom(`prism:weekly:v4:${seasonKey}:L${safeIndex + 1}:0`, cfg);
+  let level = genLevelFrom(`prism:weekly:v5:${seasonKey}:L${safeIndex + 1}:0`, cfg);
   const needsStrongerVariant = () =>
     level.par === 0 ||
-    level.targets.length !== cfg.targets;
+    level.targets.length !== cfg.targets ||
+    level.verifiedRoutes < 3 ||
+    !level.solutionMirrorCounts.some((count) => count > level.par);
   for (let variant = 1; needsStrongerVariant() && variant < 12; variant++) {
     level = genLevelFrom(
-      `prism:weekly:v4:${seasonKey}:L${safeIndex + 1}:${variant}`,
+      `prism:weekly:v5:${seasonKey}:L${safeIndex + 1}:${variant}`,
       cfg
     );
   }

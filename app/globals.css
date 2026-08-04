@@ -51,7 +51,12 @@
   border-color: rgba(233, 235, 241, 0.45);
 }
 [data-theme="dark"] .seg { background: rgba(233, 235, 241, 0.08); }
-[data-theme="dark"] .star-slot { color: #363b45; }
+[data-theme="dark"] .star-slot { color: #4c515c; }
+[data-theme="dark"] .star-slot.star-earned {
+  color: #d97706;
+  filter: drop-shadow(0 3px 9px rgba(217, 119, 6, 0.48));
+}
+[data-theme="dark"] .star-empty { color: #59606c; }
 
 body {
   background:
@@ -447,6 +452,17 @@ body {
   font-size: 46px;
   line-height: 1;
   color: #d8dbe2;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+}
+.star-empty {
+  color: #b9bec8;
+  font-family: Arial, sans-serif;
+  font-size: 48px;
+  font-weight: 400;
+  line-height: 1;
 }
 .star-earned {
   color: #d97706;
@@ -1514,38 +1530,6 @@ body {
 
 /* HEIST - museum floor */
 .art-heist { background: #1b1e24; }
-.art-heist .floor {
-  inset: 0;
-  background:
-    repeating-linear-gradient(0deg, transparent 0 34px, rgba(233, 235, 241, 0.06) 34px 35px),
-    repeating-linear-gradient(90deg, transparent 0 34px, rgba(233, 235, 241, 0.06) 34px 35px);
-}
-.art-heist .gem {
-  right: 22%;
-  top: 28%;
-  width: 7%;
-  aspect-ratio: 1;
-  background: linear-gradient(135deg, #ffe9a8, #e6c26b 55%, #a8873a);
-  transform: rotate(45deg);
-  border-radius: 18%;
-  box-shadow: 0 0 22px rgba(230, 194, 107, 0.55);
-}
-.art-heist .cone {
-  left: 16%;
-  bottom: 12%;
-  width: 42%;
-  height: 46%;
-  background: linear-gradient(75deg, rgba(255, 111, 97, 0.35), transparent 70%);
-  clip-path: polygon(0 100%, 100% 20%, 100% 78%);
-}
-.art-heist .guard {
-  left: 15%;
-  bottom: 15%;
-  width: 4.5%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: #ff6f61;
-}
 
 /* RUSH - the intersection */
 .art-rush { background: #20242b; }

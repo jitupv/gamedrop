@@ -120,13 +120,16 @@ export function guardAt(g: Guard, t: number): Cell {
   return g.path[index < 0 ? index + g.path.length : index];
 }
 
-// thief moved old→new on tick t-1→t; caught if sharing a cell or swapping with any guard
+// Thief and guard both move during tick t-1→t. Treat both swept tiles as
+// occupied for that turn: landing together, swapping head-on, or entering one
+// another's just-vacated tile from the side all count as a collision.
 export function caughtAt(guards: Guard[], oldPos: Cell, newPos: Cell, t: number): boolean {
   for (const g of guards) {
     const gNow = guardAt(g, t);
     const gPrev = guardAt(g, t - 1);
     if (gNow.c === newPos.c && gNow.r === newPos.r) return true;
-    if (gPrev.c === newPos.c && gPrev.r === newPos.r && gNow.c === oldPos.c && gNow.r === oldPos.r) return true;
+    if (gPrev.c === newPos.c && gPrev.r === newPos.r) return true;
+    if (gNow.c === oldPos.c && gNow.r === oldPos.r) return true;
   }
   return false;
 }
@@ -241,7 +244,7 @@ export function genLevelFrom(seedBase: string, cfg: HeistCfg): HeistLevel {
     if (gems.length < cfg.gems) continue;
 
     // Patrol loops must cross the route so every guard matters, but the
-    // reference timing is checked against same-cell and swap collisions.
+    // reference timing is checked against same-cell, head-on, and side-crossing collisions.
     const guards: Guard[] = [];
     let guardTries = 0;
     while (guards.length < cfg.guards && guardTries < 600) {

@@ -587,7 +587,7 @@ export default function HeistGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">3. Press GO and pray.</span> No control
-                once it starts. Same cell as a guard = caught = replan.
+                once it starts. Sharing or crossing a guard&apos;s tile on the same turn = caught = replan.
               </li>
               <li>
                 <span className="tx-ink font-semibold">4. Plan an efficient route.</span>{" "}
