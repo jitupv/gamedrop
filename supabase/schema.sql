@@ -17,7 +17,7 @@ create table public.scores (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users (id) on delete cascade,
   handle text not null check (char_length(handle) between 3 and 24),
-  game text not null check (game in ('tilt', 'orbit', 'sonar', 'heist', 'rush', 'trace')),
+  game text not null check (game in ('pulse', 'prism', 'tilt', 'orbit', 'sonar', 'heist', 'rush', 'trace')),
   mode text not null check (mode in ('daily', 'endless')),
   day text not null check (day = 'all' or day ~ '^\d{4}-\d{2}-\d{2}$'),
   score integer not null check (score >= 0 and score <= 1000000),

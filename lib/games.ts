@@ -21,6 +21,18 @@ export function featuredGameId(): string {
 
 export const GAMES: GameMeta[] = [
   {
+    id: "pulse",
+    drop: 7,
+    name: "PULSE",
+    tagline: "One tap changes everything. Silence the grid.",
+    status: "live",
+    emoji: "⚡",
+    path: "/pulse",
+    unit: "levels",
+    higherIsBetter: true,
+    accent: "#8b5cf6",
+  },
+  {
     id: "prism",
     drop: 6,
     name: "PRISM",

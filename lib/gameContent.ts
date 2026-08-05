@@ -20,6 +20,35 @@ export interface GameContent {
 }
 
 export const GAME_CONTENT: Record<string, GameContent> = {
+  pulse: {
+    id: "pulse",
+    name: "PULSE",
+    genre: "Network logic puzzle",
+    playTitle: "PULSE - connected lights logic puzzle | JEETLE",
+    playDescription: "Tap connected lights, silence the network, and climb a solver-verified 1,000-level logic campaign. Free in your browser.",
+    guideTitle: "How to play PULSE - connected lights puzzle guide | JEETLE",
+    guideDescription: "Learn PULSE rules, locked-node strategy, star scoring, and how to solve connected light networks efficiently.",
+    what: "PULSE is a connected-lights logic puzzle. Tapping one unlocked node changes that node and every node joined to it by a line. Turn every light off to silence the network. Every deterministic level is proven solvable, and an exact solver sets the three-star minimum.",
+    how: [
+      "Tap an unlocked node to send a pulse through every line connected to it.",
+      "The tapped node and all directly connected nodes switch between lit and unlit.",
+      "Turn every node off to complete the level; there is no move limit or timer.",
+      "Use Undo or Reset whenever an experiment makes the network worse.",
+      "Later locked nodes cannot be tapped directly, but pulses from their neighbours still change them.",
+    ],
+    tips: [
+      "Start with nodes that have only one connection; there are fewer ways to change them later.",
+      "A node tapped twice cancels itself, so avoid repeating taps unless you intentionally want to undo one.",
+      "Work backward from a stubborn locked light and identify every switch capable of changing it.",
+      "After solving, replay and remove pairs of unnecessary taps to chase the exact minimum.",
+    ],
+    faq: [
+      { q: "Is PULSE free?", a: "Yes. PULSE is free to play in any modern browser with no download or account required." },
+      { q: "How are stars awarded?", a: "The exact solver minimum earns 3 stars. Finish within two extra taps for 2 stars; every other solution earns 1." },
+      { q: "Are all PULSE levels solvable?", a: "Yes. Levels are constructed backward from a solution and checked by a binary solver before play." },
+      { q: "What do locked nodes do?", a: "Locked nodes still turn on and off, but you must change them by tapping connected unlocked nodes." },
+    ],
+  },
   prism: {
     id: "prism",
     name: "PRISM",
@@ -241,6 +270,7 @@ export const GAME_CONTENT: Record<string, GameContent> = {
 };
 
 export const GUIDE_ORDER = [
+  "pulse",
   "prism",
   "tilt",
   // "orbit", // Temporarily hidden.

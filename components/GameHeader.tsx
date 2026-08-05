@@ -19,6 +19,7 @@ export default function GameHeader({ gameId }: { gameId: string }) {
   const loadedWeekRef = useRef(weekKey());
   const name = GAMES.find((g) => g.id === gameId)?.name ?? gameId.toUpperCase();
   const levelGame =
+    gameId === "pulse" ||
     gameId === "prism" ||
     gameId === "tilt" ||
     gameId === "heist" ||

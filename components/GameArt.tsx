@@ -9,6 +9,27 @@ const TILT_TILES = [
 
 export default function GameArt({ id }: { id: string }) {
   switch (id) {
+    case "pulse":
+      return (
+        <div className="art art-pulse" aria-hidden="true">
+          <svg viewBox="0 0 320 200">
+            <g stroke="rgba(139,92,246,.5)" strokeWidth="3">
+              <line x1="70" y1="55" x2="160" y2="38" />
+              <line x1="70" y1="55" x2="105" y2="138" />
+              <line x1="160" y1="38" x2="236" y2="90" />
+              <line x1="105" y1="138" x2="205" y2="155" />
+              <line x1="236" y1="90" x2="205" y2="155" />
+              <line x1="160" y1="38" x2="205" y2="155" />
+            </g>
+            {[[70,55],[160,38],[105,138],[236,90],[205,155]].map(([x,y], i) => (
+              <g key={i}>
+                <circle cx={x} cy={y} r="18" fill={i === 2 ? "#252a35" : "rgba(139,92,246,.3)"} stroke={i === 2 ? "#596071" : "#a78bfa"} strokeWidth="3" />
+                <circle cx={x} cy={y} r="6" fill={i === 2 ? "#596071" : "#ddd6fe"} />
+              </g>
+            ))}
+          </svg>
+        </div>
+      );
     case "prism":
       return (
         <div className="art art-prism" aria-hidden="true">

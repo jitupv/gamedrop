@@ -8,11 +8,11 @@ import { track } from "@/lib/sdk/analytics";
 // "You pick the next drop" - one-tap vote between three candidates from the
 // 40-game roadmap. One vote per device per round; results live in PostHog.
 // When a round is settled, bump VOTE_ROUND and swap the OPTIONS.
-const VOTE_ROUND = "drop09";
+const VOTE_ROUND = "drop09b";
 const OPTIONS: { id: string; emoji: string; name: string; pitch: string }[] = [
   { id: "sums", emoji: "🔢", name: "SUMS", pitch: "Hit the target number" },
   { id: "untangle", emoji: "🕸️", name: "UNTANGLE", pitch: "Unknot the web" },
-  { id: "pulse", emoji: "⭕", name: "PULSE", pitch: "Tap the ring at its peak" },
+  { id: "beat", emoji: "⭕", name: "BEAT", pitch: "Tap the ring at its peak" },
 ];
 
 export default function VoteCard() {
