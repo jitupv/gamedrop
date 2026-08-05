@@ -4,11 +4,9 @@
 // route length, targets are dropped ON that path (never on a bend cell, since
 // a mirror can't share a cell with a target), and cosmetic walls are scattered
 // everywhere the path doesn't go. This guarantees a solution exists by
-// construction - no search needed, no risk of an unsolvable board - and stays
-// fast even as boards grow. A bounded solver then proves both the minimum and
-// the presence of genuine alternative beam routes. The beam may never cross a
-// cell it has already visited - a clean, visible constraint (you can see your
-// own trail) that also keeps those verification searches small.
+// construction - no risk of an unsolvable board. A turn-cost search proves the
+// minimum mirror count without enumerating every self-avoiding path, so normal
+// open layouts remain practical even on the largest boards.
 import { hashSeed, mulberry32 } from "@/lib/sdk/rng";
 
 export interface Cell {
@@ -18,10 +16,6 @@ export interface Cell {
 
 export type MirrorType = "/" | "\\";
 export type Dir = 0 | 1 | 2 | 3; // E, S, W, N
-
-export interface FixedMirror extends Cell {
-  type: MirrorType;
-}
 
 // (dx, dy) for each Dir - row increases downward, col increases rightward
 export const DIR_VECS: [number, number][] = [
@@ -38,13 +32,11 @@ export interface PrismLevel {
   targets: Cell[];
   emitter: { cell: Cell; dir: Dir };
   receiver: Cell;
-  fixedMirrors: FixedMirror[];
-  budget: number; // max mirrors that may be placed at once
-  par: number; // solver-verified minimum movable mirrors for 3 stars
+  par: number; // solver-verified minimum mirrors
+  parDistance: number; // shortest verified beam distance using par mirrors
   verifiedRoutes: number; // distinct solver-verified beam paths (at least 3)
   solutionMirrorCounts: number[]; // verified mirror counts represented by those paths
   noCrossing: boolean;
-  orderedTargets: boolean;
 }
 
 export interface PrismCfg {
@@ -53,42 +45,35 @@ export interface PrismCfg {
   targets: number;
   routeMirrors: number;
   wallRatio: number;
-  fixedMirrors: number;
   noCrossing: boolean;
-  orderedTargets: boolean;
 }
 
 export const TOTAL_LEVELS = 100;
-export const MIRROR_ALLOWANCE = 3;
 
-// Fixed progression shared by every player. Advanced values rise every few
-// levels instead of sitting on long 10-13 level plateaus. Every generated
-// board separately verifies its minimum and then grants three extra mirrors.
+// Boards widen steadily while their row count stays touch-friendly on phones.
+// Difficulty comes from route choice, target spread, and efficiency rather
+// than fixed mirrors or a prescribed target order.
 export function levelCfg(levelIdx: number): PrismCfg {
   const n = Math.max(0, Math.min(TOTAL_LEVELS - 1, levelIdx));
   if (n < 10) {
     return {
-      cols: 7 + Math.floor(n / 3),
-      rows: 7 + Math.floor(n / 4),
-      targets: 3 + Math.floor(n / 2),
-      routeMirrors: 2 + Math.floor((n + 1) / 2),
-      wallRatio: 0.06 + n * 0.007,
-      fixedMirrors: 0,
-      noCrossing: false,
-      orderedTargets: false,
+      cols: 7 + Math.floor((n + 1) / 2),
+      rows: 7 + Math.floor(n / 3),
+      targets: n === 0 ? 3 : Math.min(8, 3 + n),
+      routeMirrors: n === 0 ? 2 : 3 + Math.floor(n / 2),
+      wallRatio: n === 0 ? 0.05 : 0.1 + n * 0.008,
+      noCrossing: n >= 2,
     };
   }
 
   const advanced = n - 9;
   return {
-    cols: Math.min(15, 10 + Math.floor(advanced / 12)),
-    rows: Math.min(14, 9 + Math.floor(advanced / 18)),
-    targets: Math.min(16, 7 + Math.floor(advanced / 9)),
-    routeMirrors: Math.min(18, 7 + Math.floor(advanced / 7)),
-    wallRatio: Math.min(0.29, 0.12 + advanced * 0.0019),
-    fixedMirrors: n < 50 ? 0 : n < 60 ? 1 : n < 75 ? 2 : n < 90 ? 3 : 4,
-    noCrossing: n >= 25,
-    orderedTargets: n >= 75,
+    cols: Math.min(18, 11 + Math.floor(advanced / 12)),
+    rows: Math.min(12, 10 + Math.floor(advanced / 30)),
+    targets: Math.min(13, 8 + Math.floor(advanced / 8)),
+    routeMirrors: Math.min(14, 8 + Math.floor(advanced / 8)),
+    wallRatio: Math.min(0.18, 0.13 + advanced * 0.0007),
+    noCrossing: true,
   };
 }
 
@@ -103,7 +88,7 @@ export function reflect(dx: number, dy: number, type: MirrorType): [number, numb
 }
 
 export function isPlaceable(
-  level: Pick<PrismLevel, "walls" | "emitter" | "receiver" | "targets" | "fixedMirrors">,
+  level: Pick<PrismLevel, "walls" | "emitter" | "receiver" | "targets">,
   c: number,
   r: number
 ): boolean {
@@ -111,32 +96,11 @@ export function isPlaceable(
   if (level.emitter.cell.c === c && level.emitter.cell.r === r) return false;
   if (level.receiver.c === c && level.receiver.r === r) return false;
   if (level.targets.some((t) => t.c === c && t.r === r)) return false;
-  if (level.fixedMirrors.some((mirror) => mirror.c === c && mirror.r === r)) return false;
   return true;
 }
 
 function targetIndexAt(targets: Cell[], c: number, r: number): number {
   return targets.findIndex((t) => t.c === c && t.r === r);
-}
-
-function chooseFixedMirrors(
-  solution: Map<string, MirrorType>,
-  requested: number,
-  excluded = new Set<string>()
-): FixedMirror[] {
-  const entries = [...solution.entries()].filter(([key]) => !excluded.has(key));
-  const count = Math.min(requested, Math.max(0, entries.length - 2));
-  const chosen: FixedMirror[] = [];
-  const used = new Set<number>();
-  for (let i = 0; i < count; i++) {
-    let index = Math.min(entries.length - 1, Math.floor((i + 0.5) * (entries.length / count)));
-    while (used.has(index) && index + 1 < entries.length) index++;
-    used.add(index);
-    const [key, type] = entries[index];
-    const [c, r] = key.split(",").map(Number);
-    chosen.push({ c, r, type });
-  }
-  return chosen;
 }
 
 interface DetourVariant {
@@ -241,6 +205,32 @@ function buildDetourVariants(
   return variants;
 }
 
+function chooseDiverseDetours(variants: DetourVariant[], count: number): DetourVariant[] {
+  const chosen: DetourVariant[] = [];
+  const remaining = [...variants];
+  while (chosen.length < count && remaining.length > 0) {
+    let bestIndex = 0;
+    let bestDistance = -1;
+    for (let index = 0; index < remaining.length; index++) {
+      const [c, r] = remaining[index].replacedCorner.split(",").map(Number);
+      const distance = chosen.length === 0
+        ? index
+        : Math.min(
+            ...chosen.map((variant) => {
+              const [otherC, otherR] = variant.replacedCorner.split(",").map(Number);
+              return Math.abs(c - otherC) + Math.abs(r - otherR);
+            })
+          );
+      if (distance > bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    }
+    chosen.push(remaining.splice(bestIndex, 1)[0]);
+  }
+  return chosen;
+}
+
 export interface TraceResult {
   path: Cell[];
   hitTargets: Set<number>;
@@ -257,9 +247,6 @@ export function traceBeam(level: PrismLevel, mirrors: Map<string, MirrorType>): 
   const path: Cell[] = [{ c, r }];
   const hit = new Set<number>();
   const hitOrder: number[] = [];
-  const fixedMirrors = new Map(
-    level.fixedMirrors.map((mirror) => [`${mirror.c},${mirror.r}`, mirror.type] as const)
-  );
   const t0 = targetIndexAt(targets, c, r);
   if (t0 !== -1) {
     hit.add(t0);
@@ -295,96 +282,153 @@ export function traceBeam(level: PrismLevel, mirrors: Map<string, MirrorType>): 
     if (c === receiver.c && r === receiver.r) {
       return { path, hitTargets: hit, hitOrder, outcome: "receiver" };
     }
-    const m = fixedMirrors.get(`${c},${r}`) ?? mirrors.get(`${c},${r}`);
+    const m = mirrors.get(`${c},${r}`);
     if (m) [dx, dy] = reflect(dx, dy, m);
   }
   return { path, hitTargets: hit, hitOrder, outcome: "looping" };
 }
 
 export function isSolved(level: PrismLevel, trace: TraceResult): boolean {
-  const correctOrder =
-    !level.orderedTargets || trace.hitOrder.every((target, index) => target === index);
   return (
     trace.outcome === "receiver" &&
-    trace.hitTargets.size === level.targets.length &&
-    correctOrder
+    trace.hitTargets.size === level.targets.length
   );
 }
 
-type SolveCheck = "solved" | "unsolved" | "exhausted";
 type PrismBoard = Omit<
   PrismLevel,
-  "budget" | "par" | "verifiedRoutes" | "solutionMirrorCounts"
+  "par" | "parDistance" | "verifiedRoutes" | "solutionMirrorCounts"
 >;
 
-// Self-avoiding DFS used to prove the minimum movable-mirror count. Exhaustion
-// is distinct from "unsolved": a board is discarded if the search budget is
-// reached, so an uncertain result can never be presented as a verified par.
-function canSolveWithinMirrors(
-  level: PrismBoard,
-  maxMirrors: number,
-  nodeBudget = 120000
-): SolveCheck {
-  const fullMask = (1 << level.targets.length) - 1;
-  const visitedCells = new Set<string>();
-  let nodes = 0;
-  let exhausted = false;
-
-  const dfs = (c: number, r: number, dx: number, dy: number, mask: number, used: number): boolean => {
-    if (nodes++ > nodeBudget) {
-      exhausted = true;
-      return false;
-    }
-
-    const tryDir = (ndx: number, ndy: number, placedNew: boolean): boolean => {
-      const nc = c + ndx;
-      const nr = r + ndy;
-      if (nc < 0 || nr < 0 || nc >= level.cols || nr >= level.rows) return false;
-      if (level.walls[nr][nc]) return false;
-      const key = `${nc},${nr}`;
-      if (visitedCells.has(key)) return false; // the beam can't cross its own path
-      let nmask = mask;
-      const ti = targetIndexAt(level.targets, nc, nr);
-      if (ti !== -1 && (nmask & (1 << ti)) === 0) {
-        if (level.orderedTargets) {
-          let expected = 0;
-          while ((nmask & (1 << expected)) !== 0) expected++;
-          if (ti !== expected) return false;
-        }
-        nmask |= 1 << ti;
+// Exact minimum-turn search on a relaxed board state. Revisiting a cell is
+// allowed here, so this search can only find the same or a lower mirror count
+// than the playable no-crossing rules. Therefore, when its minimum equals the
+// constructed route count, that route is proven globally minimal as well.
+function minimumMirrors(level: PrismBoard, upperBound: number): number | null {
+  const targetAt = new Int16Array(level.cols * level.rows).fill(-1);
+  level.targets.forEach((target, index) => {
+    targetAt[target.r * level.cols + target.c] = index;
+  });
+  const blockedForMirror = new Uint8Array(level.cols * level.rows);
+  for (let r = 0; r < level.rows; r++) {
+    for (let c = 0; c < level.cols; c++) {
+      const id = r * level.cols + c;
+      if (
+        level.walls[r][c] ||
+        targetAt[id] !== -1 ||
+        (level.emitter.cell.c === c && level.emitter.cell.r === r) ||
+        (level.receiver.c === c && level.receiver.r === r)
+      ) {
+        blockedForMirror[id] = 1;
       }
-      const nused = used + (placedNew ? 1 : 0);
-      if (nc === level.receiver.c && nr === level.receiver.r) return nmask === fullMask;
-      if (nused > maxMirrors) return false;
-      visitedCells.add(key);
-      const ok = dfs(nc, nr, ndx, ndy, nmask, nused);
-      visitedCells.delete(key);
-      return ok;
-    };
+    }
+  }
 
-    const fixed = level.fixedMirrors.find((mirror) => mirror.c === c && mirror.r === r);
-    if (fixed) {
-      const [fdx, fdy] = reflect(dx, dy, fixed.type);
-      return tryDir(fdx, fdy, false);
-    }
-    if (tryDir(dx, dy, false)) return true;
-    if (used < maxMirrors && isPlaceable(level, c, r)) {
-      const [ax, ay] = reflectSlash(dx, dy);
-      if (tryDir(ax, ay, true)) return true;
-      const [bx, by] = reflectBack(dx, dy);
-      if (tryDir(bx, by, true)) return true;
-    }
-    return false;
+  const fullTargetState = (1 << level.targets.length) - 1;
+  const advanceTargets = (state: number, cellId: number): number => {
+    const target = targetAt[cellId];
+    if (target === -1) return state;
+    return state | (1 << target);
   };
+  const encode = (c: number, r: number, dir: Dir, targetState: number) =>
+    (((targetState * level.rows + r) * level.cols + c) * 4) + dir;
+  const stateCount = (1 << level.targets.length) * level.rows * level.cols * 4;
+  const buckets: number[][] = Array.from(
+    { length: upperBound + 1 },
+    () => []
+  );
+  const best = new Uint8Array(stateCount);
+  best.fill(255);
+  const startTargetState = advanceTargets(
+    0,
+    level.emitter.cell.r * level.cols + level.emitter.cell.c
+  );
+  const start = encode(
+    level.emitter.cell.c,
+    level.emitter.cell.r,
+    level.emitter.dir,
+    startTargetState
+  );
+  buckets[0].push(start);
+  best[start] = 0;
 
-  const start = level.emitter.cell;
-  visitedCells.add(`${start.c},${start.r}`);
-  const [edx, edy] = DIR_VECS[level.emitter.dir];
-  let startMask = 0;
-  const ti0 = targetIndexAt(level.targets, start.c, start.r);
-  if (ti0 !== -1) startMask |= 1 << ti0;
-  const solved = dfs(start.c, start.r, edx, edy, startMask, 0);
-  return solved ? "solved" : exhausted ? "exhausted" : "unsolved";
+  const slashDir: Dir[] = [3, 2, 1, 0];
+  const backDir: Dir[] = [1, 0, 3, 2];
+  for (let mirrors = 0; mirrors <= upperBound; mirrors++) {
+    const bucket = buckets[mirrors];
+    for (let cursor = 0; cursor < bucket.length; cursor++) {
+      const encoded = bucket[cursor];
+      if (best[encoded] !== mirrors) continue;
+      const dir = (encoded % 4) as Dir;
+      let packed = (encoded - dir) / 4;
+      const c = packed % level.cols;
+      packed = (packed - c) / level.cols;
+      const r = packed % level.rows;
+      const targetState = (packed - r) / level.rows;
+      const cellId = r * level.cols + c;
+      const exits: { dir: Dir; extra: number }[] = [
+        { dir, extra: 0 },
+        ...(blockedForMirror[cellId] || mirrors >= upperBound
+          ? []
+          : [
+              { dir: slashDir[dir], extra: 1 },
+              { dir: backDir[dir], extra: 1 },
+            ]),
+      ];
+
+      for (const exit of exits) {
+        const nextMirrors = mirrors + exit.extra;
+        if (nextMirrors > upperBound) continue;
+        const [dx, dy] = DIR_VECS[exit.dir];
+        const nc = c + dx;
+        const nr = r + dy;
+        if (nc < 0 || nr < 0 || nc >= level.cols || nr >= level.rows) continue;
+        if (level.walls[nr][nc]) continue;
+        const nextCellId = nr * level.cols + nc;
+        const nextTargetState = advanceTargets(targetState, nextCellId);
+        if (nc === level.receiver.c && nr === level.receiver.r) {
+          if (nextTargetState === fullTargetState) return nextMirrors;
+          continue;
+        }
+        const key = encode(nc, nr, exit.dir, nextTargetState);
+        if (best[key] <= nextMirrors) continue;
+        best[key] = nextMirrors;
+        buckets[nextMirrors].push(key);
+      }
+    }
+  }
+  return null;
+}
+
+function scatterInteriorWalls(
+  cols: number,
+  rows: number,
+  ratio: number,
+  protectedCells: Set<string>,
+  rng: () => number
+): boolean[][] {
+  const walls: boolean[][] = Array.from({ length: rows }, () => Array(cols).fill(false));
+  const requested = Math.floor(cols * rows * ratio);
+  let placed = 0;
+  for (let tries = 0; placed < requested && tries < requested * 40; tries++) {
+    const c = 1 + Math.floor(rng() * Math.max(1, cols - 2));
+    const r = 1 + Math.floor(rng() * Math.max(1, rows - 2));
+    const key = `${c},${r}`;
+    if (c >= cols - 1 || r >= rows - 1 || protectedCells.has(key) || walls[r][c]) continue;
+    let touchesWall = false;
+    for (let dr = -1; dr <= 1 && !touchesWall; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if ((dc !== 0 || dr !== 0) && walls[r + dr]?.[c + dc]) {
+          touchesWall = true;
+          break;
+        }
+      }
+    }
+    if (touchesWall) continue;
+    walls[r][c] = true;
+    placed++;
+  }
+  return walls;
 }
 
 export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
@@ -394,9 +438,7 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     targets: targetCount,
     routeMirrors,
     wallRatio,
-    fixedMirrors: requestedFixedMirrors,
     noCrossing,
-    orderedTargets,
   } = cfg;
   const maxRun = Math.max(4, Math.floor((cols + rows) / 4));
 
@@ -466,7 +508,7 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     const emitter = { cell: { c: 0, r: emitterRow }, dir: 0 as Dir };
     const detourVariants = buildDetourVariants(pathCells, mirrorsSolution, cols, rows);
     if (detourVariants.length < 2) continue;
-    const chosenDetours = detourVariants.slice(0, 2);
+    const chosenDetours = chooseDiverseDetours(detourVariants, 2);
     const detourMirrorKeys = new Set(chosenDetours.flatMap((variant) => variant.addedMirrorKeys));
     const protectedCells = new Set(visited);
     chosenDetours.forEach((variant) =>
@@ -499,67 +541,42 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     }
     if (targets.length < targetCount) continue;
 
-    // cosmetic walls, scattered anywhere the solution path doesn't run
-    const walls: boolean[][] = Array.from({ length: rows }, () => Array(cols).fill(false));
-    const wallCount = Math.floor(cols * rows * wallRatio);
-    let wallsPlaced = 0;
-    for (let tries = 0; wallsPlaced < wallCount && tries < wallCount * 10; tries++) {
-      const wc = Math.floor(rng() * cols);
-      const wr = Math.floor(rng() * rows);
-      if (protectedCells.has(`${wc},${wr}`) || walls[wr][wc]) continue;
-      walls[wr][wc] = true;
-      wallsPlaced++;
-    }
+    // Obstacles stay sparse, separated, and inside the playable area. They
+    // shape route choices without turning the outer rows into solid barriers.
+    const walls = scatterInteriorWalls(cols, rows, wallRatio, protectedCells, rng);
 
-    const replacedCorners = new Set(chosenDetours.map((variant) => variant.replacedCorner));
-    const fixedMirrors = chooseFixedMirrors(
-      mirrorsSolution,
-      requestedFixedMirrors,
-      replacedCorners
-    );
-    const variableMirrors = routeMirrors - fixedMirrors.length;
-    const bare = {
+    const bare: PrismBoard = {
       cols,
       rows,
       walls,
       targets,
       emitter,
       receiver,
-      fixedMirrors,
       noCrossing,
-      orderedTargets,
     };
-    const oneMirrorCheck = canSolveWithinMirrors(bare, 1);
-    if (oneMirrorCheck !== "unsolved") continue; // too easy or not fully verified
-    // also reject anything solvable well under the intended budget - the
-    // board should genuinely need most of what it hands out
-    if (variableMirrors >= 3) {
-      const shortcutCheck = canSolveWithinMirrors(bare, variableMirrors - 2);
-      if (shortcutCheck !== "unsolved") continue;
-    }
-    const nearParCheck = canSolveWithinMirrors(bare, variableMirrors - 1);
-    if (nearParCheck === "exhausted") continue;
-    const par = nearParCheck === "solved" ? variableMirrors - 1 : variableMirrors;
+    const par = minimumMirrors(bare, routeMirrors);
+    if (par !== routeMirrors) continue;
     const candidate: PrismLevel = {
       ...bare,
-      budget: par + MIRROR_ALLOWANCE,
       par,
+      parDistance: pathCells.length - 1,
       verifiedRoutes: 0,
       solutionMirrorCounts: [],
     };
-    const fixedKeys = new Set(fixedMirrors.map((mirror) => `${mirror.c},${mirror.r}`));
-    const playerSolutions = [mirrorsSolution, ...chosenDetours.map((variant) => variant.mirrors)]
-      .map((solution) => new Map([...solution].filter(([key]) => !fixedKeys.has(key))));
+    const playerSolutions = [mirrorsSolution, ...chosenDetours.map((variant) => variant.mirrors)];
     const solutionPaths = new Set<string>();
     const solutionMirrorCounts = new Set<number>([par]);
+    const parDistances: number[] = [];
     for (const solution of playerSolutions) {
-      if (solution.size > candidate.budget) continue;
       const trace = traceBeam(candidate, solution);
       if (!isSolved(candidate, trace)) continue;
       solutionPaths.add(trace.path.map((cell) => `${cell.c},${cell.r}`).join(">"));
       solutionMirrorCounts.add(solution.size);
+      if (solution.size === par) parDistances.push(trace.path.length - 1);
     }
     if (solutionPaths.size < 3) continue;
+    if (parDistances.length === 0) continue;
+    candidate.parDistance = Math.min(...parDistances);
     candidate.verifiedRoutes = solutionPaths.size;
     candidate.solutionMirrorCounts = [...solutionMirrorCounts].sort((a, b) => a - b);
     return candidate;
@@ -604,12 +621,12 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
   }
 
   const receiver: Cell = { c: fc, r: fr };
-  const fallbackDetours = buildDetourVariants(
+  const fallbackDetours = chooseDiverseDetours(buildDetourVariants(
     fallbackPath,
     fallbackMirrors,
     cols,
     rows
-  ).slice(0, 2);
+  ), 2);
   const fallbackDetourMirrorKeys = new Set(
     fallbackDetours.flatMap((variant) => variant.addedMirrorKeys)
   );
@@ -628,48 +645,56 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     fallbackTargets.push({ c: eligibleTargets[index].c, r: eligibleTargets[index].r });
   }
 
-  const fallbackReplacedCorners = new Set(
-    fallbackDetours.map((variant) => variant.replacedCorner)
-  );
-  const fixedMirrors = chooseFixedMirrors(
-    fallbackMirrors,
-    requestedFixedMirrors,
-    fallbackReplacedCorners
-  );
-  const variableMirrors = routeMirrors - fixedMirrors.length;
-  // The fallback is a branching corridor: the snake stays protected, and two
-  // square pockets provide real alternative paths around its corners.
+  // Even the fallback remains an open board. Its sparse interior obstacles use
+  // a separate deterministic seed, so weekly variants do not collapse into the
+  // old solid-row corridor layout.
   const fallbackProtected = new Set(fallbackVisited);
   fallbackDetours.forEach((variant) =>
     variant.protectedKeys.forEach((key) => fallbackProtected.add(key))
   );
-  const fallbackWalls: boolean[][] = Array.from({ length: rows }, (_, row) =>
-    Array.from({ length: cols }, (_, col) => !fallbackProtected.has(`${col},${row}`))
+  const fallbackWalls = scatterInteriorWalls(
+    cols,
+    rows,
+    wallRatio,
+    fallbackProtected,
+    mulberry32(hashSeed(`${seedBase}:fallback-walls`))
   );
-  const fallbackBare = {
+  const fallbackBare: PrismBoard = {
     cols,
     rows,
     walls: fallbackWalls,
     targets: fallbackTargets,
     emitter,
     receiver,
-    fixedMirrors,
     noCrossing,
-    orderedTargets,
   };
-  const fallbackCounts = new Set<number>([variableMirrors]);
-  const fallbackFixedKeys = new Set(fixedMirrors.map((mirror) => `${mirror.c},${mirror.r}`));
-  fallbackDetours.forEach((variant) => {
-    const movableCount = [...variant.mirrors.keys()].filter(
-      (key) => !fallbackFixedKeys.has(key)
-    ).length;
-    fallbackCounts.add(movableCount);
-  });
+  const fallbackPar = minimumMirrors(fallbackBare, routeMirrors) ?? routeMirrors;
+  const fallbackCounts = new Set<number>([fallbackPar]);
+  const fallbackParDistances: number[] = [];
+  const fallbackPaths = new Set<string>();
+  [fallbackMirrors, ...fallbackDetours.map((variant) => variant.mirrors)].forEach(
+    (solution) => {
+      const candidate: PrismLevel = {
+        ...fallbackBare,
+        par: fallbackPar,
+        parDistance: fallbackPath.length - 1,
+        verifiedRoutes: 0,
+        solutionMirrorCounts: [],
+      };
+      const trace = traceBeam(candidate, solution);
+      if (!isSolved(candidate, trace)) return;
+      fallbackPaths.add(trace.path.map((cell) => `${cell.c},${cell.r}`).join(">"));
+      fallbackCounts.add(solution.size);
+      if (solution.size === fallbackPar) fallbackParDistances.push(trace.path.length - 1);
+    }
+  );
   return {
     ...fallbackBare,
-    budget: variableMirrors + MIRROR_ALLOWANCE,
-    par: variableMirrors,
-    verifiedRoutes: 1 + fallbackDetours.length,
+    par: fallbackPar,
+    parDistance: fallbackParDistances.length > 0
+      ? Math.min(...fallbackParDistances)
+      : fallbackPath.length - 1,
+    verifiedRoutes: fallbackPaths.size,
     solutionMirrorCounts: [...fallbackCounts].sort((a, b) => a - b),
   };
 }
@@ -677,23 +702,30 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
 export function genProgressLevel(levelIdx: number, seasonKey = "all"): PrismLevel {
   const safeIndex = Math.max(0, Math.min(TOTAL_LEVELS - 1, levelIdx));
   const cfg = levelCfg(safeIndex);
-  let level = genLevelFrom(`prism:weekly:v5:${seasonKey}:L${safeIndex + 1}:0`, cfg);
+  let level = genLevelFrom(`prism:weekly:v7:${seasonKey}:L${safeIndex + 1}:0`, cfg);
   const needsStrongerVariant = () =>
     level.par === 0 ||
+    level.par !== cfg.routeMirrors ||
+    level.parDistance === 0 ||
     level.targets.length !== cfg.targets ||
     level.verifiedRoutes < 3 ||
     !level.solutionMirrorCounts.some((count) => count > level.par);
   for (let variant = 1; needsStrongerVariant() && variant < 12; variant++) {
     level = genLevelFrom(
-      `prism:weekly:v5:${seasonKey}:L${safeIndex + 1}:${variant}`,
+      `prism:weekly:v7:${seasonKey}:L${safeIndex + 1}:${variant}`,
       cfg
     );
   }
   return level;
 }
 
-export function starsFor(mirrorsUsed: number, par: number): number {
-  if (mirrorsUsed <= par) return 3;
-  if (mirrorsUsed === par + 1) return 2;
+export function starsFor(
+  mirrorsUsed: number,
+  beamDistance: number,
+  par: number,
+  parDistance: number
+): number {
+  if (mirrorsUsed <= par && beamDistance <= parDistance) return 3;
+  if (mirrorsUsed <= par + 1) return 2;
   return 1;
 }

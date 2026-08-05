@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   Cell,
-  MIRROR_ALLOWANCE,
   MirrorType,
   PrismLevel,
   TOTAL_LEVELS,
@@ -45,6 +44,7 @@ export default function PrismGame() {
   const [targetsHit, setTargetsHit] = useState(0);
   const [completed, setCompleted] = useState(0);
   const [lastStars, setLastStars] = useState(1);
+  const [lastDistance, setLastDistance] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
 
   const levelRef = useRef<PrismLevel | null>(null);
@@ -88,12 +88,13 @@ export default function PrismGame() {
     setPhaseBoth("play");
   };
 
-  const finishLevel = (used: number) => {
+  const finishLevel = (used: number, distance: number) => {
     const level = levelRef.current;
     if (!level || phaseRef.current !== "play") return;
 
     chirp(420, 880, 0.32, "triangle", 0.07);
-    setLastStars(starsFor(used, level.par));
+    setLastStars(starsFor(used, distance, level.par, level.parDistance));
+    setLastDistance(distance);
 
     const finished = levelIdxRef.current + 1;
     const nextCompleted = Math.max(completedRef.current, finished);
@@ -115,7 +116,7 @@ export default function PrismGame() {
     const trace = traceBeam(level, mirrorsRef.current);
     traceRef.current = trace;
     setTargetsHit(trace.hitTargets.size);
-    if (isSolved(level, trace)) finishLevel(used);
+    if (isSolved(level, trace)) finishLevel(used, trace.path.length - 1);
   };
 
   const resetMirrors = () => {
@@ -135,7 +136,7 @@ export default function PrismGame() {
     setCompleted(saved);
     loadLevel(Math.min(saved, TOTAL_LEVELS - 1));
 
-    if (!window.localStorage.getItem("gd:prism:help:v4")) setShowHelp(true);
+    if (!window.localStorage.getItem("gd:prism:help:v6")) setShowHelp(true);
 
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -169,10 +170,6 @@ export default function PrismGame() {
       const key = `${hit.c},${hit.r}`;
       const existing = mirrorsRef.current.get(key);
       if (existing === undefined) {
-        if (mirrorsRef.current.size >= level.budget) {
-          blip(170, 0.09, "square", 0.05);
-          return;
-        }
         mirrorsRef.current.set(key, "/");
         blip(520, 0.05, "triangle", 0.04);
       } else if (existing === "/") {
@@ -247,13 +244,6 @@ export default function PrismGame() {
         ctx.strokeStyle = hit ? ACCENT : "rgba(238,240,245,0.32)";
         ctx.lineWidth = hit ? 3 : 2;
         ctx.stroke();
-        if (level.orderedTargets) {
-          ctx.fillStyle = hit ? "#ffffff" : "rgba(238,240,245,0.72)";
-          ctx.font = `700 ${Math.max(11, Math.floor(cell * 0.24))}px ui-sans-serif, system-ui`;
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(String(index + 1), x, y + 0.5);
-        }
       });
 
       {
@@ -287,32 +277,11 @@ export default function PrismGame() {
         ctx.fill();
       }
 
-      for (const mirror of level.fixedMirrors) {
-        const x = ox + (mirror.c + 0.5) * cell;
-        const y = oy + (mirror.r + 0.5) * cell;
-        const size = cell * 0.3;
-        ctx.strokeStyle = "#f4c95d";
-        ctx.lineWidth = 5;
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        if (mirror.type === "/") {
-          ctx.moveTo(x - size, y + size);
-          ctx.lineTo(x + size, y - size);
-        } else {
-          ctx.moveTo(x - size, y - size);
-          ctx.lineTo(x + size, y + size);
-        }
-        ctx.stroke();
-        ctx.strokeStyle = "rgba(244,201,93,0.55)";
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(x - cell * 0.36, y - cell * 0.36, cell * 0.72, cell * 0.72);
-      }
-
       for (const [key, type] of mirrorsRef.current) {
         const [c, r] = key.split(",").map(Number);
         const x = ox + (c + 0.5) * cell;
         const y = oy + (r + 0.5) * cell;
-        const size = cell * 0.3;
+        const size = cell * 0.34;
         ctx.strokeStyle = "#eef0f5";
         ctx.lineWidth = 4;
         ctx.lineCap = "round";
@@ -356,15 +325,13 @@ export default function PrismGame() {
   }, []);
 
   const cfg = levelCfg(levelIdx);
-  const fixedCount = levelRef.current?.fixedMirrors.length ?? cfg.fixedMirrors;
-  const minimumMirrors = levelRef.current?.par ?? cfg.routeMirrors - fixedCount;
-  const mirrorLimit = levelRef.current?.budget ?? minimumMirrors + MIRROR_ALLOWANCE;
+  const minimumMirrors = levelRef.current?.par ?? cfg.routeMirrors;
+  const minimumDistance = levelRef.current?.parDistance ?? 0;
   const maxUnlockedIndex = Math.min(completed, TOTAL_LEVELS - 1);
   const ruleSummary = [
     `${levelRef.current?.verifiedRoutes ?? 3}+ solution paths`,
-    fixedCount > 0 ? `${fixedCount} fixed mirror${fixedCount === 1 ? "" : "s"}` : "",
+    "targets in any order",
     (levelRef.current?.noCrossing ?? cfg.noCrossing) ? "no crossing" : "",
-    (levelRef.current?.orderedTargets ?? cfg.orderedTargets) ? "targets in order" : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -382,9 +349,7 @@ export default function PrismGame() {
         </div>
         <div className="stat">
           <span className="lab">Mirrors</span>
-          <span className="val">
-            {mirrorsUsed}/{mirrorLimit}
-          </span>
+          <span className="val">{mirrorsUsed}</span>
         </div>
         <div className="stat">
           <span className="lab">Targets</span>
@@ -394,7 +359,7 @@ export default function PrismGame() {
         </div>
         <div className="stat">
           <span className="lab">3 stars</span>
-          <span className="val">≤{minimumMirrors}</span>
+          <span className="val">{minimumMirrors} / {minimumDistance}</span>
         </div>
       </div>
 
@@ -431,9 +396,9 @@ export default function PrismGame() {
       </div>
 
       <p className="hint">
-        beam stays live · <b>{mirrorLimit} mirrors max</b> ·{" "}
+        beam stays live · <b>no mirror limit</b> ·{" "}
         <span className="hidden sm:inline">
-          3★ ≤{minimumMirrors} · 2★ {minimumMirrors + 1} · 1★ {minimumMirrors + 2}–{mirrorLimit} ·{" "}
+          3★ {minimumMirrors} mirrors / {minimumDistance} cells · 2★ up to {minimumMirrors + 1} mirrors ·{" "}
         </span>
         {ruleSummary && <><b>{ruleSummary}</b> · </>}
         <span className="hidden sm:inline">{weekLabel()} · </span>
@@ -449,7 +414,7 @@ export default function PrismGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:prism:help:v4", "1");
+                  window.localStorage.setItem("gd:prism:help:v6", "1");
                 } catch {}
               }}
             >
@@ -466,18 +431,19 @@ export default function PrismGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">2. Hit every target.</span>{" "}
-                The beam must pass through every ring before reaching the diamond receiver.
+                The beam must pass through every ring, in any order, before reaching the receiver.
               </li>
               <li>
                 <span className="tx-ink font-semibold">3. Stars reward efficiency.</span>{" "}
-                Every puzzle&apos;s minimum is verified by the solver. The minimum earns 3 stars,
-                one extra mirror earns 2, and two or three extra mirrors earn 1. Every level has
-                at least three complete beam paths, including longer detour solutions.
+                Use both the minimum mirrors and shortest verified beam distance for 3 stars.
+                A longer minimum-mirror route or one extra mirror earns 2 stars. Any other
+                completed route earns 1 star.
               </li>
               <li>
-                <span className="tx-ink font-semibold">4. New constraints arrive gradually.</span>{" "}
-                From Level 26 the beam cannot cross its own path. Fixed gold mirrors appear from
-                Level 51, and numbered targets must be hit in order from Level 76.
+                <span className="tx-ink font-semibold">4. Find your own route.</span>{" "}
+                Every level has at least three complete paths. There are no fixed mirrors,
+                no forced target order, and no mirror placement limit. From Level 3 the beam
+                cannot cross its own path.
               </li>
               <li>
                 <span className="tx-ink font-semibold">5. Keep climbing.</span>{" "}
@@ -489,7 +455,7 @@ export default function PrismGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:prism:help:v4", "1");
+                  window.localStorage.setItem("gd:prism:help:v6", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
@@ -507,7 +473,11 @@ export default function PrismGame() {
           share={{ game: "prism", level: levelIdx + 1 }}
           stars={lastStars}
           score={{ label: "mirrors used", value: mirrorsUsed }}
-          badges={[`${completed} completed this week`, `3★ minimum: ${minimumMirrors}`]}
+          badges={[
+            `${completed} completed this week`,
+            `${lastDistance} beam cells`,
+            `3-star goal: ${minimumMirrors} mirrors / ${minimumDistance} cells`,
+          ]}
           primary={{
             label: `Level ${levelIdx + 2} →`,
             onClick: () => loadLevel(levelIdx + 1),
