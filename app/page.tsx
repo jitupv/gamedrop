@@ -29,6 +29,13 @@ const HOME: Record<
   string,
   { genre: string; desc: string; lede: [string, string, string]; diff: 1 | 2 | 3; time: string }
 > = {
+  pulse: {
+    genre: "Network logic",
+    desc: "Tap one node and every connected light flips. Silence the entire network in as few taps as possible.",
+    lede: ["Tap one light.", "Flip every connection.", "Silence the whole network."],
+    diff: 3,
+    time: "2-5 min",
+  },
   prism: {
     genre: "Laser logic",
     desc: "A laser fires from a fixed point. Bend it with mirrors through every target - on a strict budget.",

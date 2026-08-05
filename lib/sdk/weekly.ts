@@ -1,5 +1,6 @@
 const LEVEL_METRIC = "levels-completed";
 const LEGACY_PROGRESS_KEYS: Record<string, string> = {
+  pulse: "gd:pulse:v1:levels-completed",
   prism: "gd:prism:v3:levels-completed",
   tilt: "gd:tilt:v1:levels-completed",
   sonar: "gd:sonar:v1:levels-completed",
@@ -9,6 +10,7 @@ const LEGACY_PROGRESS_KEYS: Record<string, string> = {
 };
 
 export const LEVEL_GAME_IDS = [
+  "pulse",
   "prism",
   "tilt",
   "sonar",
@@ -16,6 +18,8 @@ export const LEVEL_GAME_IDS = [
   "rush",
   "trace",
 ] as const;
+
+const levelCap = (game: string) => game === "pulse" ? 1000 : 100;
 
 export function weekKey(date = new Date()): string {
   const monday = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -60,12 +64,12 @@ export function readStoredNumber(key: string): number {
 }
 
 export function readWeeklyProgress(game: string): number {
-  return Math.min(100, Math.floor(readStoredNumber(weeklyStorageKey(game))));
+  return Math.min(levelCap(game), Math.floor(readStoredNumber(weeklyStorageKey(game))));
 }
 
 export function readCareerBest(game: string): number {
   return Math.min(
-    100,
+    levelCap(game),
     Math.floor(
       Math.max(
         readStoredNumber(`gd:${game}:career-best`),
@@ -77,7 +81,7 @@ export function readCareerBest(game: string): number {
 
 export function writeWeeklyProgress(game: string, completed: number): void {
   if (typeof window === "undefined") return;
-  const safe = Math.max(0, Math.min(100, Math.floor(completed)));
+  const safe = Math.max(0, Math.min(levelCap(game), Math.floor(completed)));
   try {
     window.localStorage.setItem(weeklyStorageKey(game), String(safe));
     const careerKey = `gd:${game}:career-best`;

@@ -55,6 +55,23 @@ function drawWatermark(
   let drawn = true;
 
   switch (game) {
+    case "pulse": {
+      ctx.lineWidth = s * 0.035;
+      const points = [[-.36,-.28],[.05,-.42],[.38,-.05],[-.22,.34],[.28,.36]];
+      const links = [[0,1],[1,2],[0,3],[1,4],[2,4],[3,4]];
+      links.forEach(([a, b]) => {
+        ctx.beginPath();
+        ctx.moveTo(cx + points[a][0] * s, cy + points[a][1] * s);
+        ctx.lineTo(cx + points[b][0] * s, cy + points[b][1] * s);
+        ctx.stroke();
+      });
+      points.forEach(([x, y]) => {
+        ctx.beginPath();
+        ctx.arc(cx + x * s, cy + y * s, s * 0.09, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      break;
+    }
     case "prism": {
       // a bent beam bouncing off a mirror line - the game's whole mechanic in one mark
       ctx.lineWidth = s * 0.045;

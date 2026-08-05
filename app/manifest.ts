@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: `${SITE_NAME} - ${SITE_TAGLINE}`,
     short_name: SITE_NAME,
-    description: "Six original games. A fresh daily challenge in every one. Play today's free.",
+    description: "Seven original games. Fresh challenges, free to play in your browser.",
     start_url: "/",
     display: "standalone",
     background_color: "#12151b",
