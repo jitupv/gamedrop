@@ -126,9 +126,13 @@ export interface SpawnEvent {
 export function makeTrafficStream(seedKey: string, level = 1) {
   const rng = mulberry32(hashSeed(`rush:${seedKey}`));
   let t = 0;
+  let activeLevel = level;
   return {
+    setLevel(nextLevel: number) {
+      activeLevel = Math.max(1, Math.min(TOTAL_LEVELS, Math.floor(nextLevel)));
+    },
     next(): SpawnEvent {
-      t += spawnInterval(t, level) * (0.78 + rng() * 0.44);
+      t += spawnInterval(t, activeLevel) * (0.78 + rng() * 0.44);
       return { t, dir: Math.floor(rng() * 4) as Dir, color: Math.floor(rng() * 6) };
     },
   };

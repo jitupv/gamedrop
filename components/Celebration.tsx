@@ -30,6 +30,7 @@ export default function Celebration({
   countdown,
   feedback,
   finalWeek,
+  delayMs = 900,
 }: {
   title: string;
   subtitle?: string;
@@ -46,16 +47,24 @@ export default function Celebration({
   countdown?: boolean; // show the live "next challenge at midnight" ticker
   feedback?: string; // game id - shows a one-tap "how was today's puzzle?" emoji row
   finalWeek?: boolean;
+  delayMs?: number; // leave the final board state visible before showing results
 }) {
   const [display, setDisplay] = useState(0);
+  const [revealed, setRevealed] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [shared, setShared] = useState(false);
   const [sharing, setSharing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scoreValue = score?.value ?? 0;
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setRevealed(true), Math.max(0, delayMs));
+    return () => window.clearTimeout(timer);
+  }, [delayMs]);
+
   // score counts up from zero
   useEffect(() => {
+    if (!revealed) return;
     const t0 = performance.now();
     const dur = 900;
     let raf = 0;
@@ -66,10 +75,11 @@ export default function Celebration({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [scoreValue]);
+  }, [scoreValue, revealed]);
 
   // one-shot jingle + confetti on mount
   useEffect(() => {
+    if (!revealed) return;
     if (stars > 0 && !isMuted()) {
       try {
         const AC =
@@ -138,7 +148,7 @@ export default function Celebration({
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [revealed, stars]);
 
   const fmt = (v: number) =>
     score?.decimals ? v.toFixed(score.decimals) : Math.round(v).toLocaleString();
@@ -152,6 +162,8 @@ export default function Celebration({
     setShared(true);
     window.setTimeout(() => setShared(false), 2000);
   };
+
+  if (!revealed) return null;
 
   // dismissed: reveal the board, keep a floating continue pill so nobody gets stuck
   if (hidden) {
@@ -175,14 +187,23 @@ export default function Celebration({
         </button>
         <div className="ribbon">{title}</div>
         {subtitle && <p className="tx-muted text-sm mt-3">{subtitle}</p>}
-        <div className="mt-4 flex justify-center gap-2">
+        <div
+          className="mt-4 flex justify-center gap-2"
+          role="img"
+          aria-label={`${stars} out of 3 stars earned`}
+        >
           {[0, 1, 2].map((i) => (
             <span
               key={i}
               className={`star-slot ${i < stars ? "star-earned" : ""}`}
               style={i < stars ? { animationDelay: `${0.15 + i * 0.22}s` } : undefined}
+              aria-hidden="true"
             >
-              <FontAwesomeIcon icon={faStar} width={40} height={40} />
+              {i < stars ? (
+                <FontAwesomeIcon icon={faStar} width={40} height={40} />
+              ) : (
+                <span className="star-empty">☆</span>
+              )}
             </span>
           ))}
         </div>

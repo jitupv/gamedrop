@@ -29,6 +29,8 @@ export default function HeistGame() {
   const [phase, setPhase] = useState<Phase>("plan");
   const [attempts, setAttempts] = useState(0);
   const [pathLen, setPathLen] = useState(1);
+  const [stepLimit, setStepLimit] = useState<number | null>(null);
+  const [orderedGems, setOrderedGems] = useState(false);
   const [canGo, setCanGo] = useState(false);
   const [completed, setCompleted] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
@@ -69,6 +71,8 @@ export default function HeistGame() {
     setLevelIdx(safeIdx);
     setAttempts(0);
     setPathLen(1);
+    setStepLimit(lv.stepLimit);
+    setOrderedGems(lv.orderedGems);
     setCanGo(false);
     setPhaseBoth("plan");
   };
@@ -111,7 +115,7 @@ export default function HeistGame() {
     completedRef.current = saved;
     setCompleted(saved);
     startLevel(Math.min(saved, TOTAL_LEVELS - 1));
-    if (!window.localStorage.getItem("gd:heist:help:v2")) setShowHelp(true);
+    if (!window.localStorage.getItem("gd:heist:help:v3")) setShowHelp(true);
 
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -142,6 +146,24 @@ export default function HeistGame() {
       if (dist !== 1) return;
       // each tile can be stepped on only once - no doubling back
       if (path.some((p) => p.c === target.c && p.r === target.r)) return;
+      // Later museums have a route budget, but editing and undoing remain free.
+      if (lv.stepLimit !== null && path.length - 1 >= lv.stepLimit) {
+        blip(220, 0.08, "square", 0.05);
+        return;
+      }
+      // Numbered vaults must be emptied in sequence.
+      if (lv.orderedGems) {
+        const targetGem = lv.gems.findIndex((gm) => gm.c === target.c && gm.r === target.r);
+        if (targetGem >= 0) {
+          const nextGem = lv.gems.findIndex(
+            (gm) => !path.some((p) => p.c === gm.c && p.r === gm.r)
+          );
+          if (targetGem !== nextGem) {
+            blip(220, 0.08, "square", 0.05);
+            return;
+          }
+        }
+      }
       // the exit is a locked door until every gem is already on the route
       if (target.c === lv.exit.c && target.r === lv.exit.r) {
         const allGems = lv.gems.every((gm) => path.some((p) => p.c === gm.c && p.r === gm.r));
@@ -348,6 +370,17 @@ export default function HeistGame() {
         ctx.strokeStyle = "rgba(41,36,32,0.4)";
         ctx.lineWidth = 1.5;
         ctx.stroke();
+        if (lv.orderedGems) {
+          ctx.fillStyle = "#3a2c13";
+          ctx.font = `bold ${Math.max(10, Math.floor(cell * 0.24))}px ui-sans-serif, system-ui`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.save();
+          ctx.translate(x, y);
+          if (portraitRef.current) ctx.rotate(Math.PI / 2);
+          ctx.fillText(String(i + 1), 0, 0);
+          ctx.restore();
+        }
       });
 
       // characters are drawn as emoji - instantly readable, no legend needed;
@@ -379,6 +412,32 @@ export default function HeistGame() {
           gy = oy + (a.r + 0.5) * cell;
         }
         glyph("👮", gx, gy, cell * 0.72);
+
+        // Patrol information stays fully visible: the arrow shows this
+        // guard's direction, including reverse patrols in later museums.
+        if (phaseRef.current === "plan") {
+          const a = guardAt(g, 0);
+          const b = guardAt(g, 1);
+          const dx = b.c - a.c;
+          const dy = b.r - a.r;
+          const px = -dy;
+          const py = dx;
+          const tipX = ox + (a.c + 0.5 + dx * 0.46) * cell;
+          const tipY = oy + (a.r + 0.5 + dy * 0.46) * cell;
+          ctx.fillStyle = "rgba(150,69,43,0.9)";
+          ctx.beginPath();
+          ctx.moveTo(tipX, tipY);
+          ctx.lineTo(
+            tipX - dx * cell * 0.18 + px * cell * 0.1,
+            tipY - dy * cell * 0.18 + py * cell * 0.1
+          );
+          ctx.lineTo(
+            tipX - dx * cell * 0.18 - px * cell * 0.1,
+            tipY - dy * cell * 0.18 - py * cell * 0.1
+          );
+          ctx.closePath();
+          ctx.fill();
+        }
 
         // ghost: where this guard will be when your plan reaches its current length
         if (phaseRef.current === "plan" && path.length > 1) {
@@ -458,7 +517,9 @@ export default function HeistGame() {
         </div>
         <div className="stat">
           <span className="lab">Steps</span>
-          <span className="val">{pathLen - 1}</span>
+          <span className="val">
+            {pathLen - 1}{stepLimit === null ? "" : ` / ${stepLimit}`}
+          </span>
         </div>
       </div>
 
@@ -489,8 +550,9 @@ export default function HeistGame() {
         </button>
       </div>
       <p className="hint">
-        grab <b>all {cfg.gems} gems</b>, then reach EXIT · each tile only <b>once</b> · guards move
-        when you move · first-plan escape earns 3 stars · weekly remix {weekLabel()} ·{" "}
+        grab <b>all {cfg.gems} gems{orderedGems ? " in number order" : ""}</b>, then reach EXIT
+        {stepLimit === null ? "" : <> · stay within <b>{stepLimit} steps</b></>} · each tile only <b>once</b> ·
+        guards move when you move · first-plan escape earns 3 stars · weekly remix {weekLabel()} ·{" "}
         <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
@@ -503,7 +565,7 @@ export default function HeistGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:heist:help:v2", "1");
+                  window.localStorage.setItem("gd:heist:help:v3", "1");
                 } catch {}
               }}
             >
@@ -520,29 +582,31 @@ export default function HeistGame() {
                 <span className="tx-ink font-semibold">2. Guards patrol the dotted loops.</span>{" "}
                 Each guard moves one tile for every tile you move. The{" "}
                 <span className="tx-ink font-semibold">dashed ghost</span> shows where each guard
-                will be at your plan&apos;s final step. Tap your path&apos;s head to undo.
+                will be at your plan&apos;s final step, and its arrow shows patrol direction. Tap your
+                path&apos;s head to undo.
               </li>
               <li>
                 <span className="tx-ink font-semibold">3. Press GO and pray.</span> No control
-                once it starts. Same cell as a guard = caught = replan.
+                once it starts. Sharing or crossing a guard&apos;s tile on the same turn = caught = replan.
               </li>
               <li>
-                <span className="tx-ink font-semibold">4. Each tile can be used only once.</span>{" "}
-                You cannot double back to wait out guards. Finish on your first plan for 3 stars,
-                your second for 2 stars, or your third or later for 1 star.
+                <span className="tx-ink font-semibold">4. Plan an efficient route.</span>{" "}
+                Each tile can be used only once. From Level 11, the Steps counter also gives a
+                route limit; undoing while you plan costs nothing. Finish on your first plan for
+                3 stars, your second for 2 stars, or your third or later for 1 star.
               </li>
               <li>
                 <span className="tx-ink font-semibold">5. Keep climbing.</span>{" "}
-                Later museums add longer routes, more walls, more gems, and up to six guards.
-                Every Monday brings new placements. Weekly depth is ranked, while your
-                career best remains saved.
+                Later museums add longer routes, denser walls, more gems, and up to eight guards.
+                From Level 51 some patrols run in the opposite direction. From Level 76, collect
+                numbered gems in order. Every Monday brings new placements.
               </li>
             </ol>
             <button
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:heist:help:v2", "1");
+                  window.localStorage.setItem("gd:heist:help:v3", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"

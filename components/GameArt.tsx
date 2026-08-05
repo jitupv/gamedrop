@@ -74,10 +74,67 @@ export default function GameArt({ id }: { id: string }) {
     case "heist":
       return (
         <div className="art art-heist" aria-hidden="true">
-          <i className="floor" />
-          <i className="gem" />
-          <i className="cone" />
-          <i className="guard" />
+          <svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid meet">
+            <g stroke="rgba(238,240,245,.07)" strokeWidth="1">
+              {[40, 80, 120, 160, 200, 240, 280].map((x) => (
+                <line key={`vx-${x}`} x1={x} y1="0" x2={x} y2="200" />
+              ))}
+              {[40, 80, 120, 160].map((y) => (
+                <line key={`hy-${y}`} x1="0" y1={y} x2="320" y2={y} />
+              ))}
+            </g>
+
+            <g fill="#343943" stroke="rgba(238,240,245,.12)" strokeWidth="1">
+              <rect x="104" y="18" width="38" height="38" rx="6" />
+              <rect x="104" y="62" width="38" height="38" rx="6" />
+              <rect x="224" y="126" width="38" height="38" rx="6" />
+            </g>
+
+            <path
+              d="M 42 154 L 82 154 L 82 116 L 184 116 L 184 68 L 242 68 L 278 108"
+              fill="none"
+              stroke="rgba(63,191,127,.7)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="3 8"
+            />
+            <rect
+              x="151"
+              y="82"
+              width="72"
+              height="66"
+              rx="10"
+              fill="none"
+              stroke="rgba(255,111,97,.55)"
+              strokeWidth="2"
+              strokeDasharray="5 5"
+            />
+
+            <g transform="translate(42 154)">
+              <circle r="13" fill="#3fbf7f" />
+              <rect x="-9" y="-4" width="18" height="7" rx="3.5" fill="#11151b" />
+              <circle cx="-4" cy="-1" r="1.5" fill="#eef0f5" />
+              <circle cx="4" cy="-1" r="1.5" fill="#eef0f5" />
+            </g>
+
+            <g transform="translate(187 82)">
+              <circle r="12" fill="#ff6f61" />
+              <path d="M -11 -7 Q 0 -17 11 -7 Z" fill="#eef0f5" opacity=".85" />
+              <circle cx="-4" cy="0" r="1.5" fill="#1b1e24" />
+              <circle cx="4" cy="0" r="1.5" fill="#1b1e24" />
+            </g>
+
+            <g transform="translate(184 116)">
+              <path d="M 0 -14 L 14 0 L 0 16 L -14 0 Z" fill="#e6c26b" />
+              <path d="M -14 0 L 14 0 M 0 -14 L -5 0 M 0 -14 L 5 0" stroke="#fff2bd" strokeWidth="1.5" fill="none" />
+            </g>
+
+            <g transform="translate(278 108)">
+              <rect x="-24" y="-22" width="48" height="44" rx="7" fill="rgba(230,194,107,.18)" stroke="#e6c26b" strokeWidth="2" />
+              <text x="0" y="5" textAnchor="middle" fill="#e6c26b" fontSize="12" fontWeight="800">EXIT</text>
+            </g>
+          </svg>
         </div>
       );
     case "rush":

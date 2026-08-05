@@ -38,6 +38,7 @@ import { applyView, inScreenSpace } from "@/lib/sdk/viewport";
 import PuzzleRating from "@/components/PuzzleRating";
 import Celebration from "@/components/Celebration";
 import {
+  readWeeklyProgress,
   readStoredNumber,
   weekLabel,
   weeklySeed,
@@ -107,12 +108,23 @@ export default function RushGame() {
     setPhase(p);
   };
 
+  const saveLevelRecord = (level: number) => {
+    const safeLevel = Math.max(1, Math.min(TOTAL_LEVELS, Math.floor(level)));
+    if (safeLevel <= completedRef.current) return;
+    completedRef.current = safeLevel;
+    setCompleted(safeLevel);
+    writeWeeklyProgress("rush", safeLevel);
+    void reportLevelProgress("rush", safeLevel);
+  };
+
   const startRun = () => {
     carsRef.current = [];
     lightRef.current = "H";
     scoreRef.current = 0;
     setScore(0);
-    runLevelRef.current = progressFromCars(totalCarsRef.current).level;
+    totalCarsRef.current = 0;
+    setTotalCars(0);
+    runLevelRef.current = 1;
     const stream = makeTrafficStream(weeklySeed("rush"), runLevelRef.current);
     streamRef.current = stream;
     nextEventRef.current = stream.next();
@@ -121,6 +133,9 @@ export default function RushGame() {
     crashPairRef.current = [];
     debrisRef.current = [];
     patienceRef.current = patienceFor(0, runLevelRef.current);
+    if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
+    noticeTimerRef.current = null;
+    setLevelNotice(null);
     setCrashHidden(false);
     blip(520, 0.09, "triangle", 0.06);
     setPhaseBoth("run");
@@ -143,19 +158,14 @@ export default function RushGame() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const savedCars = Math.min(
-      TOTAL_LEVELS * CARS_PER_LEVEL,
-      readStoredNumber(weeklyStorageKey("rush", "total-cars"))
-    );
-    const progress = progressFromCars(savedCars);
-    totalCarsRef.current = savedCars;
-    completedRef.current = progress.completed;
+    const savedLevel = readWeeklyProgress("rush");
+    totalCarsRef.current = 0;
+    completedRef.current = savedLevel;
     bestRef.current = readStoredNumber(weeklyStorageKey("rush", "best-run"));
-    setTotalCars(savedCars);
-    setCompleted(progress.completed);
+    setTotalCars(0);
+    setCompleted(savedLevel);
     setBest(bestRef.current);
-    writeWeeklyProgress("rush", progress.completed);
-    if (!window.localStorage.getItem("gd:rush:help:v2")) setShowHelp(true);
+    if (!window.localStorage.getItem("gd:rush:help:v3")) setShowHelp(true);
 
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -208,6 +218,7 @@ export default function RushGame() {
 
     const endRun = () => {
       const s = scoreRef.current;
+      saveLevelRecord(progressFromCars(totalCarsRef.current).level);
       if (s > bestRef.current) {
         bestRef.current = s;
         setBest(s);
@@ -307,24 +318,17 @@ export default function RushGame() {
                   totalCarsRef.current += 1;
                   setTotalCars(totalCarsRef.current);
                   const progress = progressFromCars(totalCarsRef.current);
-                  try {
-                    window.localStorage.setItem(
-                      weeklyStorageKey("rush", "total-cars"),
-                      String(totalCarsRef.current)
-                    );
-                  } catch {}
-                  if (progress.completed > completedRef.current) {
-                    completedRef.current = progress.completed;
-                    setCompleted(progress.completed);
+                  if (progress.level > runLevelRef.current) {
+                    runLevelRef.current = progress.level;
+                    streamRef.current?.setLevel(progress.level);
                     setLevelNotice(progress.completed);
-                    writeWeeklyProgress("rush", progress.completed);
-                    void reportLevelProgress("rush", progress.completed);
-                    if (progress.completed >= TOTAL_LEVELS) {
-                      setPhaseBoth("ready");
-                      setShowFinale(true);
-                    }
                     if (noticeTimerRef.current !== null) window.clearTimeout(noticeTimerRef.current);
                     noticeTimerRef.current = window.setTimeout(() => setLevelNotice(null), 2400);
+                  }
+                  if (progress.completed >= TOTAL_LEVELS) {
+                    saveLevelRecord(TOTAL_LEVELS);
+                    setPhaseBoth("ready");
+                    setShowFinale(true);
                   }
                 }
               }
@@ -578,8 +582,8 @@ export default function RushGame() {
           <span className="val">{progress.level}</span>
         </div>
         <div className="stat">
-          <span className="lab">Completed</span>
-          <span className="val">{progress.completed}</span>
+          <span className="lab">Best level</span>
+          <span className="val">{completed}</span>
         </div>
         <div className="stat">
           <span className="lab">This level</span>
@@ -625,7 +629,7 @@ export default function RushGame() {
 
       <p className="hint shrink-0">
         tap anywhere<span className="hidden sm:inline"> (or space)</span> to switch the light ·{" "}
-        {CARS_PER_LEVEL} safe cars complete a level · progress survives crashes ·{" "}
+        {CARS_PER_LEVEL} safe cars complete a level · best level survives crashes ·{" "}
         <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
@@ -638,7 +642,7 @@ export default function RushGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:rush:help:v2", "1");
+                  window.localStorage.setItem("gd:rush:help:v3", "1");
                 } catch {}
               }}
             >
@@ -652,7 +656,7 @@ export default function RushGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">2. Cars keep coming, faster and faster.</span>{" "}
-                Each saved level also makes traffic and impatient drivers slightly tougher.
+                Every level reached in the current run makes traffic and impatient drivers tougher.
               </li>
               <li>
                 <span className="tx-ink font-semibold">3. One touch = game over.</span> A car
@@ -667,15 +671,15 @@ export default function RushGame() {
                 <span className="tx-ink font-semibold">
                   5. Every {CARS_PER_LEVEL} safe cars completes a level.
                 </span>{" "}
-                Progress is cumulative across runs during the week, so a crash does not take
-                completed cars away. Monday starts a shared traffic remix; your career best remains saved.
+                After a pile-up, your highest level is saved as the weekly record and the next run
+                starts fresh at Level 1. Monday starts a shared traffic remix; your career best remains saved.
               </li>
             </ol>
             <button
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:rush:help:v2", "1");
+                  window.localStorage.setItem("gd:rush:help:v3", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
@@ -694,7 +698,7 @@ export default function RushGame() {
           onClick={startRun}
           className="btn-ink fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-6 py-2.5 shadow-xl"
         >
-          Again
+          Again from Level 1
         </button>
       )}
 
@@ -727,11 +731,13 @@ export default function RushGame() {
                 {shared ? "Shared ✓" : "Challenge a friend"}
               </button>
               <button onClick={startRun} className="btn-line px-5 py-2.5">
-                Again
+                Again from Level 1
               </button>
             </div>
             <PuzzleRating game="rush" quiet />
-            <p className="text-xs tx-soft mt-4">Weekly completed-level progress is saved automatically.</p>
+            <p className="text-xs tx-soft mt-4">
+              Best level {completed} is saved. Every new run starts at Level 1.
+            </p>
           </div>
         </div>
       )}
@@ -740,7 +746,7 @@ export default function RushGame() {
         <Celebration
           title="Weekly RUSH run complete!"
           stars={3}
-          score={{ label: "levels completed", value: progress.completed }}
+          score={{ label: "best level", value: completed }}
           badges={[`${score} cars this run`, "Weekly run complete"]}
           primary={{
             label: "Keep playing",

@@ -109,18 +109,17 @@ export default function PrismGame() {
   const syncMirrorState = () => {
     const level = levelRef.current;
     if (!level) return;
-    const trace = traceBeam(level, mirrorsRef.current);
-    traceRef.current = trace;
     const used = mirrorsRef.current.size;
     setMirrorsUsed(used);
+    const trace = traceBeam(level, mirrorsRef.current);
+    traceRef.current = trace;
     setTargetsHit(trace.hitTargets.size);
     if (isSolved(level, trace)) finishLevel(used);
   };
 
   const resetMirrors = () => {
     if (phaseRef.current !== "play") return;
-    mirrorsRef.current = new Map();
-    syncMirrorState();
+    loadLevel(levelIdxRef.current);
     blip(260, 0.05, "sine", 0.035);
   };
 
@@ -135,7 +134,7 @@ export default function PrismGame() {
     setCompleted(saved);
     loadLevel(Math.min(saved, TOTAL_LEVELS - 1));
 
-    if (!window.localStorage.getItem("gd:prism:help")) setShowHelp(true);
+    if (!window.localStorage.getItem("gd:prism:help:v7")) setShowHelp(true);
 
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -169,10 +168,6 @@ export default function PrismGame() {
       const key = `${hit.c},${hit.r}`;
       const existing = mirrorsRef.current.get(key);
       if (existing === undefined) {
-        if (mirrorsRef.current.size >= level.budget) {
-          blip(170, 0.09, "square", 0.05);
-          return;
-        }
         mirrorsRef.current.set(key, "/");
         blip(520, 0.05, "triangle", 0.04);
       } else if (existing === "/") {
@@ -284,7 +279,7 @@ export default function PrismGame() {
         const [c, r] = key.split(",").map(Number);
         const x = ox + (c + 0.5) * cell;
         const y = oy + (r + 0.5) * cell;
-        const size = cell * 0.3;
+        const size = cell * 0.34;
         ctx.strokeStyle = "#eef0f5";
         ctx.lineWidth = 4;
         ctx.lineCap = "round";
@@ -328,8 +323,14 @@ export default function PrismGame() {
   }, []);
 
   const cfg = levelCfg(levelIdx);
-  const mirrorLimit = levelRef.current?.budget ?? cfg.routeMirrors + 2;
-  const maxUnlockedIndex = Math.min(completed, TOTAL_LEVELS - 1);
+  const minimumMirrors = levelRef.current?.par ?? cfg.routeMirrors;
+  const ruleSummary = [
+    `${levelRef.current?.verifiedRoutes ?? 3}+ solution paths`,
+    "targets in any order",
+    (levelRef.current?.noCrossing ?? cfg.noCrossing) ? "no crossing" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="relative w-full h-full flex flex-col">
@@ -344,9 +345,7 @@ export default function PrismGame() {
         </div>
         <div className="stat">
           <span className="lab">Mirrors</span>
-          <span className="val">
-            {mirrorsUsed}/{mirrorLimit}
-          </span>
+          <span className="val">{mirrorsUsed}</span>
         </div>
         <div className="stat">
           <span className="lab">Targets</span>
@@ -355,8 +354,8 @@ export default function PrismGame() {
           </span>
         </div>
         <div className="stat">
-          <span className="lab">Week</span>
-          <span className="val">{weekLabel()}</span>
+          <span className="lab">3 stars</span>
+          <span className="val">≤{minimumMirrors}</span>
         </div>
       </div>
 
@@ -383,7 +382,6 @@ export default function PrismGame() {
           onClick={() => loadLevel(levelIdx + 1)}
           disabled={
             phase !== "play" ||
-            levelIdx >= maxUnlockedIndex ||
             levelIdx >= TOTAL_LEVELS - 1
           }
           className="btn-line px-4 py-2 disabled:opacity-40"
@@ -393,8 +391,12 @@ export default function PrismGame() {
       </div>
 
       <p className="hint">
-        tap a cell to place a mirror · bend the beam through every target ·{" "}
-        <b>{mirrorLimit} mirrors max</b> ·{" "}
+        beam stays live · <b>no mirror limit</b> ·{" "}
+        <span className="hidden sm:inline">
+          3★ ≤{minimumMirrors} mirrors · 2★ {minimumMirrors + 1} mirrors · 1★ {minimumMirrors + 2}+ mirrors ·{" "}
+        </span>
+        {ruleSummary && <><b>{ruleSummary}</b> · </>}
+        <span className="hidden sm:inline">{weekLabel()} · </span>
         <button onClick={() => setShowHelp(true)}>how to play?</button>
       </p>
 
@@ -407,7 +409,7 @@ export default function PrismGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:prism:help", "1");
+                  window.localStorage.setItem("gd:prism:help:v7", "1");
                 } catch {}
               }}
             >
@@ -424,14 +426,21 @@ export default function PrismGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">2. Hit every target.</span>{" "}
-                The beam must pass through every ring before reaching the diamond receiver.
+                The beam must pass through every ring, in any order, before reaching the receiver.
               </li>
               <li>
-                <span className="tx-ink font-semibold">3. Respect the mirror limit.</span>{" "}
-                Using the minimum number of mirrors earns three stars.
+                <span className="tx-ink font-semibold">3. Stars reward efficiency.</span>{" "}
+                Use the solver-verified minimum mirrors for 3 stars. One extra mirror earns
+                2 stars, and any other completed route earns 1 star.
               </li>
               <li>
-                <span className="tx-ink font-semibold">4. Keep climbing.</span>{" "}
+                <span className="tx-ink font-semibold">4. Find your own route.</span>{" "}
+                Every level has at least three complete paths. There are no fixed mirrors,
+                no forced target order, and no mirror placement limit. From Level 3 the beam
+                cannot cross its own path.
+              </li>
+              <li>
+                <span className="tx-ink font-semibold">5. Keep climbing.</span>{" "}
                 Every Monday brings a globally shared remix. Weekly progress starts
                 at Level 1 while your career best remains saved.
               </li>
@@ -440,7 +449,7 @@ export default function PrismGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:prism:help", "1");
+                  window.localStorage.setItem("gd:prism:help:v7", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
@@ -458,7 +467,10 @@ export default function PrismGame() {
           share={{ game: "prism", level: levelIdx + 1 }}
           stars={lastStars}
           score={{ label: "mirrors used", value: mirrorsUsed }}
-          badges={[`${completed} completed this week`]}
+          badges={[
+            `${completed} completed this week`,
+            `3-star minimum: ${minimumMirrors} mirrors`,
+          ]}
           primary={{
             label: `Level ${levelIdx + 2} →`,
             onClick: () => loadLevel(levelIdx + 1),
