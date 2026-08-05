@@ -44,7 +44,6 @@ export default function PrismGame() {
   const [targetsHit, setTargetsHit] = useState(0);
   const [completed, setCompleted] = useState(0);
   const [lastStars, setLastStars] = useState(1);
-  const [lastDistance, setLastDistance] = useState(0);
   const [showHelp, setShowHelp] = useState(false);
 
   const levelRef = useRef<PrismLevel | null>(null);
@@ -88,13 +87,12 @@ export default function PrismGame() {
     setPhaseBoth("play");
   };
 
-  const finishLevel = (used: number, distance: number) => {
+  const finishLevel = (used: number) => {
     const level = levelRef.current;
     if (!level || phaseRef.current !== "play") return;
 
     chirp(420, 880, 0.32, "triangle", 0.07);
-    setLastStars(starsFor(used, distance, level.par, level.parDistance));
-    setLastDistance(distance);
+    setLastStars(starsFor(used, level.par));
 
     const finished = levelIdxRef.current + 1;
     const nextCompleted = Math.max(completedRef.current, finished);
@@ -116,7 +114,7 @@ export default function PrismGame() {
     const trace = traceBeam(level, mirrorsRef.current);
     traceRef.current = trace;
     setTargetsHit(trace.hitTargets.size);
-    if (isSolved(level, trace)) finishLevel(used, trace.path.length - 1);
+    if (isSolved(level, trace)) finishLevel(used);
   };
 
   const resetMirrors = () => {
@@ -136,7 +134,7 @@ export default function PrismGame() {
     setCompleted(saved);
     loadLevel(Math.min(saved, TOTAL_LEVELS - 1));
 
-    if (!window.localStorage.getItem("gd:prism:help:v6")) setShowHelp(true);
+    if (!window.localStorage.getItem("gd:prism:help:v7")) setShowHelp(true);
 
     const mq = window.matchMedia("(orientation: portrait)");
     const applyOrientation = () => {
@@ -326,8 +324,6 @@ export default function PrismGame() {
 
   const cfg = levelCfg(levelIdx);
   const minimumMirrors = levelRef.current?.par ?? cfg.routeMirrors;
-  const minimumDistance = levelRef.current?.parDistance ?? 0;
-  const maxUnlockedIndex = Math.min(completed, TOTAL_LEVELS - 1);
   const ruleSummary = [
     `${levelRef.current?.verifiedRoutes ?? 3}+ solution paths`,
     "targets in any order",
@@ -359,7 +355,7 @@ export default function PrismGame() {
         </div>
         <div className="stat">
           <span className="lab">3 stars</span>
-          <span className="val">{minimumMirrors} / {minimumDistance}</span>
+          <span className="val">≤{minimumMirrors}</span>
         </div>
       </div>
 
@@ -386,7 +382,6 @@ export default function PrismGame() {
           onClick={() => loadLevel(levelIdx + 1)}
           disabled={
             phase !== "play" ||
-            levelIdx >= maxUnlockedIndex ||
             levelIdx >= TOTAL_LEVELS - 1
           }
           className="btn-line px-4 py-2 disabled:opacity-40"
@@ -398,7 +393,7 @@ export default function PrismGame() {
       <p className="hint">
         beam stays live · <b>no mirror limit</b> ·{" "}
         <span className="hidden sm:inline">
-          3★ {minimumMirrors} mirrors / {minimumDistance} cells · 2★ up to {minimumMirrors + 1} mirrors ·{" "}
+          3★ ≤{minimumMirrors} mirrors · 2★ {minimumMirrors + 1} mirrors · 1★ {minimumMirrors + 2}+ mirrors ·{" "}
         </span>
         {ruleSummary && <><b>{ruleSummary}</b> · </>}
         <span className="hidden sm:inline">{weekLabel()} · </span>
@@ -414,7 +409,7 @@ export default function PrismGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:prism:help:v6", "1");
+                  window.localStorage.setItem("gd:prism:help:v7", "1");
                 } catch {}
               }}
             >
@@ -435,9 +430,8 @@ export default function PrismGame() {
               </li>
               <li>
                 <span className="tx-ink font-semibold">3. Stars reward efficiency.</span>{" "}
-                Use both the minimum mirrors and shortest verified beam distance for 3 stars.
-                A longer minimum-mirror route or one extra mirror earns 2 stars. Any other
-                completed route earns 1 star.
+                Use the solver-verified minimum mirrors for 3 stars. One extra mirror earns
+                2 stars, and any other completed route earns 1 star.
               </li>
               <li>
                 <span className="tx-ink font-semibold">4. Find your own route.</span>{" "}
@@ -455,7 +449,7 @@ export default function PrismGame() {
               onClick={() => {
                 setShowHelp(false);
                 try {
-                  window.localStorage.setItem("gd:prism:help:v6", "1");
+                  window.localStorage.setItem("gd:prism:help:v7", "1");
                 } catch {}
               }}
               className="btn-ink mt-5 w-full px-5 py-2.5"
@@ -475,8 +469,7 @@ export default function PrismGame() {
           score={{ label: "mirrors used", value: mirrorsUsed }}
           badges={[
             `${completed} completed this week`,
-            `${lastDistance} beam cells`,
-            `3-star goal: ${minimumMirrors} mirrors / ${minimumDistance} cells`,
+            `3-star minimum: ${minimumMirrors} mirrors`,
           ]}
           primary={{
             label: `Level ${levelIdx + 2} →`,

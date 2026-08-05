@@ -33,7 +33,6 @@ export interface PrismLevel {
   emitter: { cell: Cell; dir: Dir };
   receiver: Cell;
   par: number; // solver-verified minimum mirrors
-  parDistance: number; // shortest verified beam distance using par mirrors
   verifiedRoutes: number; // distinct solver-verified beam paths (at least 3)
   solutionMirrorCounts: number[]; // verified mirror counts represented by those paths
   noCrossing: boolean;
@@ -297,7 +296,7 @@ export function isSolved(level: PrismLevel, trace: TraceResult): boolean {
 
 type PrismBoard = Omit<
   PrismLevel,
-  "par" | "parDistance" | "verifiedRoutes" | "solutionMirrorCounts"
+  "par" | "verifiedRoutes" | "solutionMirrorCounts"
 >;
 
 // Exact minimum-turn search on a relaxed board state. Revisiting a cell is
@@ -559,24 +558,19 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
     const candidate: PrismLevel = {
       ...bare,
       par,
-      parDistance: pathCells.length - 1,
       verifiedRoutes: 0,
       solutionMirrorCounts: [],
     };
     const playerSolutions = [mirrorsSolution, ...chosenDetours.map((variant) => variant.mirrors)];
     const solutionPaths = new Set<string>();
     const solutionMirrorCounts = new Set<number>([par]);
-    const parDistances: number[] = [];
     for (const solution of playerSolutions) {
       const trace = traceBeam(candidate, solution);
       if (!isSolved(candidate, trace)) continue;
       solutionPaths.add(trace.path.map((cell) => `${cell.c},${cell.r}`).join(">"));
       solutionMirrorCounts.add(solution.size);
-      if (solution.size === par) parDistances.push(trace.path.length - 1);
     }
     if (solutionPaths.size < 3) continue;
-    if (parDistances.length === 0) continue;
-    candidate.parDistance = Math.min(...parDistances);
     candidate.verifiedRoutes = solutionPaths.size;
     candidate.solutionMirrorCounts = [...solutionMirrorCounts].sort((a, b) => a - b);
     return candidate;
@@ -670,14 +664,12 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
   };
   const fallbackPar = minimumMirrors(fallbackBare, routeMirrors) ?? routeMirrors;
   const fallbackCounts = new Set<number>([fallbackPar]);
-  const fallbackParDistances: number[] = [];
   const fallbackPaths = new Set<string>();
   [fallbackMirrors, ...fallbackDetours.map((variant) => variant.mirrors)].forEach(
     (solution) => {
       const candidate: PrismLevel = {
         ...fallbackBare,
         par: fallbackPar,
-        parDistance: fallbackPath.length - 1,
         verifiedRoutes: 0,
         solutionMirrorCounts: [],
       };
@@ -685,15 +677,11 @@ export function genLevelFrom(seedBase: string, cfg: PrismCfg): PrismLevel {
       if (!isSolved(candidate, trace)) return;
       fallbackPaths.add(trace.path.map((cell) => `${cell.c},${cell.r}`).join(">"));
       fallbackCounts.add(solution.size);
-      if (solution.size === fallbackPar) fallbackParDistances.push(trace.path.length - 1);
     }
   );
   return {
     ...fallbackBare,
     par: fallbackPar,
-    parDistance: fallbackParDistances.length > 0
-      ? Math.min(...fallbackParDistances)
-      : fallbackPath.length - 1,
     verifiedRoutes: fallbackPaths.size,
     solutionMirrorCounts: [...fallbackCounts].sort((a, b) => a - b),
   };
@@ -706,7 +694,6 @@ export function genProgressLevel(levelIdx: number, seasonKey = "all"): PrismLeve
   const needsStrongerVariant = () =>
     level.par === 0 ||
     level.par !== cfg.routeMirrors ||
-    level.parDistance === 0 ||
     level.targets.length !== cfg.targets ||
     level.verifiedRoutes < 3 ||
     !level.solutionMirrorCounts.some((count) => count > level.par);
@@ -719,13 +706,8 @@ export function genProgressLevel(levelIdx: number, seasonKey = "all"): PrismLeve
   return level;
 }
 
-export function starsFor(
-  mirrorsUsed: number,
-  beamDistance: number,
-  par: number,
-  parDistance: number
-): number {
-  if (mirrorsUsed <= par && beamDistance <= parDistance) return 3;
+export function starsFor(mirrorsUsed: number, par: number): number {
+  if (mirrorsUsed <= par) return 3;
   if (mirrorsUsed <= par + 1) return 2;
   return 1;
 }
