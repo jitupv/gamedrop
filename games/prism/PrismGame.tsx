@@ -382,6 +382,7 @@ export default function PrismGame() {
           onClick={() => loadLevel(levelIdx + 1)}
           disabled={
             phase !== "play" ||
+            levelIdx >= completed ||
             levelIdx >= TOTAL_LEVELS - 1
           }
           className="btn-line px-4 py-2 disabled:opacity-40"
