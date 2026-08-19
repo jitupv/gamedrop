@@ -41,7 +41,6 @@ export function progressFromCars(totalCars: number): RushProgress {
 // Now a neglected road leaks a red-runner into the crossing, which means
 // starving an axis is the losing move rather than the winning one.
 export const PATIENCE_MAX = 7.5; // seconds a front car will wait early on
-export const PATIENCE_MIN = 4.4; // ...and at level 100
 export const PATIENCE_MIN = 3.8; // ...and at level 100
 export const CREEP_FRAC = 0.6; // fraction of patience spent still, then it nudges
 export const CREEP_SPEED = 11; // px/s of visible "I'm going" creep
