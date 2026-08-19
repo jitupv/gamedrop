@@ -67,6 +67,73 @@ interface Debris {
   color: string;
 }
 
+// A compact top-down car drawn from primitives. Keeping it in the canvas makes
+// the game fast and crisp at every screen size while adding the wheels, cabin,
+// glass and lights that distinguish it from the old rounded box.
+function drawCar(
+  ctx: CanvasRenderingContext2D,
+  car: Car,
+  bodyColor: string,
+  crashed: boolean
+) {
+  const r = carRect(car);
+  const angle = car.dir === 0 ? 0 : car.dir === 1 ? Math.PI : car.dir === 2 ? Math.PI / 2 : -Math.PI / 2;
+
+  ctx.save();
+  ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
+  ctx.rotate(angle);
+
+  // Four small tyres sit just outside the body silhouette.
+  ctx.fillStyle = "#332f2b";
+  for (const x of [-16, 8]) {
+    ctx.beginPath();
+    ctx.roundRect(x, -14, 9, 4, 2);
+    ctx.roundRect(x, 10, 9, 4, 2);
+    ctx.fill();
+  }
+
+  // Tapered nose and tail read as a vehicle even when the car is moving fast.
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.moveTo(-23, -8);
+  ctx.quadraticCurveTo(-20, -11, -14, -11);
+  ctx.lineTo(13, -11);
+  ctx.quadraticCurveTo(21, -9, 23, -4);
+  ctx.lineTo(23, 4);
+  ctx.quadraticCurveTo(21, 9, 13, 11);
+  ctx.lineTo(-14, 11);
+  ctx.quadraticCurveTo(-20, 11, -23, 8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = crashed ? "rgba(41,36,32,0.8)" : "rgba(41,36,32,0.42)";
+  ctx.lineWidth = crashed ? 2.5 : 1.4;
+  ctx.stroke();
+
+  // Cabin and windscreens.
+  ctx.fillStyle = "rgba(224,238,239,0.78)";
+  ctx.beginPath();
+  ctx.roundRect(-9, -8, 21, 16, 4);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(41,36,32,0.28)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(5, -8);
+  ctx.lineTo(5, 8);
+  ctx.moveTo(-5, -8);
+  ctx.lineTo(-5, 8);
+  ctx.stroke();
+
+  // Headlights at the nose, red tail lights at the back.
+  ctx.fillStyle = "#f7e5a3";
+  ctx.fillRect(20, -8, 2.5, 4);
+  ctx.fillRect(20, 4, 2.5, 4);
+  ctx.fillStyle = "#a9433c";
+  ctx.fillRect(-23, -8, 2.5, 4);
+  ctx.fillRect(-23, 4, 2.5, 4);
+  ctx.restore();
+}
+
 export default function RushGame() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [score, setScore] = useState(0);
@@ -447,17 +514,12 @@ export default function RushGame() {
         }
 
         // the two cars that touched flash so the eye lands on the cause
-        ctx.fillStyle = crashed
+        const bodyColor = crashed
           ? wrecking && pulse > 0.5
             ? "#e8503a"
             : "#c0392b"
           : COLORS[car.color % COLORS.length];
-        ctx.beginPath();
-        ctx.roundRect(r.x, r.y, r.w, r.h, 6);
-        ctx.fill();
-        ctx.strokeStyle = crashed ? "rgba(41,36,32,0.7)" : "rgba(41,36,32,0.35)";
-        ctx.lineWidth = crashed ? 2.5 : 1.5;
-        ctx.stroke();
+        drawCar(ctx, car, bodyColor, crashed);
       }
 
       // ---- the wreck ----

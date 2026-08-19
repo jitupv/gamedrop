@@ -13,7 +13,9 @@ export const CAR_W = 24;
 export const GAP = 14; // bumper gap when queuing
 export const CRUISE = 175; // px/s
 export const ACCEL = 380; // px/s^2
-export const CARS_PER_LEVEL = 50;
+// Short levels keep the full 100-level climb achievable in a single skilled
+// run. At the old 50 cars per level, a perfect run needed 5,000 crossings.
+export const CARS_PER_LEVEL = 12;
 export const TOTAL_LEVELS = 100;
 
 export interface RushProgress {
@@ -38,8 +40,8 @@ export function progressFromCars(totalCars: number): RushProgress {
 // the game stopped sending cars down it, so doing nothing was the best play.
 // Now a neglected road leaks a red-runner into the crossing, which means
 // starving an axis is the losing move rather than the winning one.
-export const PATIENCE_MAX = 7; // seconds a front car will wait early on
-export const PATIENCE_MIN = 3.4; // ...and once the rush is in full swing
+export const PATIENCE_MAX = 7.5; // seconds a front car will wait early on
+export const PATIENCE_MIN = 4.4; // ...and at level 100
 export const CREEP_FRAC = 0.6; // fraction of patience spent still, then it nudges
 export const CREEP_SPEED = 11; // px/s of visible "I'm going" creep
 export const CREEP_MAX = 26; // px it can nudge past the line before it commits
@@ -56,11 +58,12 @@ export interface Car {
   jumped: boolean; // ran the red - the light no longer holds this one back
 }
 
-// How long the front car of a red queue tolerates the wait. Tightens as the
-// traffic thickens so the endgame squeezes from both sides at once.
-export function patienceFor(elapsed: number, level = 1): number {
-  const levelPressure = (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) * 0.008;
-  return Math.max(PATIENCE_MIN, PATIENCE_MAX - levelPressure - elapsed * 0.045);
+// How long the front car of a red queue tolerates the wait. Difficulty follows
+// the displayed level rather than wall-clock time, so every step is predictable
+// and a long, careful run never hits a hidden impossible mode.
+export function patienceFor(_elapsed: number, level = 1): number {
+  const progress = (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) / (TOTAL_LEVELS - 1);
+  return PATIENCE_MAX - (PATIENCE_MAX - PATIENCE_MIN) * Math.pow(progress, 0.85);
 }
 
 // Visible tell before a car runs the red: it sits still, then starts inching
@@ -138,16 +141,11 @@ export function makeTrafficStream(seedKey: string, level = 1) {
   };
 }
 
-// Ramps for 75s and then floors. The floor is deliberately below what any
-// alternation pattern can serve: at 0.30s a spawn arrives every ~1.2s per
-// direction while a green axis only drains ~2.9 cars/s, so both axes together
-// demand more than 100% of the light's time. That gives each run a real ceiling
-// instead of letting a steady player idle at a plateau forever.
-export function spawnInterval(elapsed: number, level = 1): number {
-  const levelPressure = Math.max(
-    0.65,
-    1 - (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) * 0.0035
-  );
-
-  return Math.max(0.3, (1.7 - elapsed * 0.024) * levelPressure);
+// Traffic builds smoothly across all 100 levels. The previous time-based ramp
+// fell from 1.7s to an impossible 0.3s in only 75 seconds, so level 2 behaved
+// like an abrupt difficulty wall. The new 0.82s floor remains demanding, but a
+// strong player can keep both axes moving all the way through level 100.
+export function spawnInterval(_elapsed: number, level = 1): number {
+  const progress = (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) / (TOTAL_LEVELS - 1);
+  return 1.7 - 0.88 * Math.pow(progress, 0.9);
 }
