@@ -42,6 +42,7 @@ export function progressFromCars(totalCars: number): RushProgress {
 // starving an axis is the losing move rather than the winning one.
 export const PATIENCE_MAX = 7.5; // seconds a front car will wait early on
 export const PATIENCE_MIN = 4.4; // ...and at level 100
+export const PATIENCE_MIN = 3.8; // ...and at level 100
 export const CREEP_FRAC = 0.6; // fraction of patience spent still, then it nudges
 export const CREEP_SPEED = 11; // px/s of visible "I'm going" creep
 export const CREEP_MAX = 26; // px it can nudge past the line before it commits
@@ -64,6 +65,7 @@ export interface Car {
 export function patienceFor(_elapsed: number, level = 1): number {
   const progress = (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) / (TOTAL_LEVELS - 1);
   return PATIENCE_MAX - (PATIENCE_MAX - PATIENCE_MIN) * Math.pow(progress, 0.85);
+  return PATIENCE_MAX - (PATIENCE_MAX - PATIENCE_MIN) * Math.pow(progress, 0.8);
 }
 
 // Visible tell before a car runs the red: it sits still, then starts inching
@@ -145,7 +147,11 @@ export function makeTrafficStream(seedKey: string, level = 1) {
 // fell from 1.7s to an impossible 0.3s in only 75 seconds, so level 2 behaved
 // like an abrupt difficulty wall. The new 0.82s floor remains demanding, but a
 // strong player can keep both axes moving all the way through level 100.
+// Traffic builds smoothly across all 100 levels. The curve is gentle at the
+// start, becomes clearly noticeable through the middle levels, and reaches a
+// demanding but serviceable 0.68s floor for expert play at level 100.
 export function spawnInterval(_elapsed: number, level = 1): number {
   const progress = (Math.max(1, Math.min(TOTAL_LEVELS, level)) - 1) / (TOTAL_LEVELS - 1);
   return 1.7 - 0.88 * Math.pow(progress, 0.9);
+  return 1.7 - 1.02 * Math.pow(progress, 0.72);
 }
